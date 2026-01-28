@@ -577,8 +577,10 @@ async def auto_annotate_theme_rheme(request: ThemeRhemeRequest):
     - Rheme: everything after the theme
     
     This endpoint requires the text to have SpaCy annotations already.
+    Supports both plain text (.spacy.json) and audio/video transcripts.
     """
     from models.database import TextDB
+    import os
     
     try:
         # Get text from database to find the actual file path
@@ -589,29 +591,88 @@ async def auto_annotate_theme_rheme(request: ThemeRhemeRequest):
                 detail=f"Text not found: {request.text_id}"
             )
         
-        # Get content path
-        content_path = text.get('content_path')
-        if not content_path:
-            raise HTTPException(
-                status_code=400,
-                detail="Text has no content path"
-            )
+        media_type = text.get('media_type', 'text')
+        spacy_data = None
         
-        # For plain text, use .spacy.json file
-        content_path = Path(content_path)
-        spacy_path = content_path.parent / f"{content_path.stem}.spacy.json"
+        # For audio/video, get SpaCy data from transcript JSON
+        if media_type in ['audio', 'video']:
+            transcript_json = text.get('transcript_json_path')
+            if transcript_json and os.path.exists(transcript_json):
+                with open(transcript_json, 'r', encoding='utf-8') as f:
+                    transcript_data = json.load(f)
+                
+                spacy_annotations = transcript_data.get('spacy_annotations', {})
+                segments = transcript_data.get('segments', [])
+                
+                if spacy_annotations and spacy_annotations.get('success') and segments:
+                    # Convert segment-based format to unified format for theme analysis
+                    all_tokens = []
+                    all_sentences = []
+                    spacy_segments = spacy_annotations.get('segments', {})
+                    current_offset = 0
+                    
+                    for seg in segments:
+                        seg_id = seg.get('id', 0)
+                        seg_text = seg.get('text', '')
+                        seg_spacy = spacy_segments.get(seg_id, spacy_segments.get(str(seg_id), {}))
+                        
+                        # Add sentence entry
+                        all_sentences.append({
+                            'text': seg_text,
+                            'start': current_offset,
+                            'end': current_offset + len(seg_text)
+                        })
+                        
+                        # Add tokens with offset adjustment
+                        for token in seg_spacy.get('tokens', []):
+                            all_tokens.append({
+                                'text': token.get('text', ''),
+                                'start': current_offset + token.get('start', 0),
+                                'end': current_offset + token.get('end', 0),
+                                'pos': token.get('pos', ''),
+                                'tag': token.get('tag', ''),
+                                'lemma': token.get('lemma', ''),
+                                'dep': token.get('dep', ''),
+                                'morph': token.get('morph', '')
+                            })
+                        
+                        current_offset += len(seg_text) + 1
+                    
+                    spacy_data = {
+                        'success': True,
+                        'tokens': all_tokens,
+                        'sentences': all_sentences,
+                        'entities': []
+                    }
+            
+            if not spacy_data:
+                raise HTTPException(
+                    status_code=404,
+                    detail="SpaCy annotation not found in transcript. Please run SpaCy annotation first."
+                )
+        else:
+            # For plain text, use .spacy.json file
+            content_path = text.get('content_path')
+            if not content_path:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Text has no content path"
+                )
+            
+            content_path = Path(content_path)
+            spacy_path = content_path.parent / f"{content_path.stem}.spacy.json"
+            
+            if not spacy_path.exists():
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"SpaCy annotation file not found. Please run SpaCy annotation first."
+                )
+            
+            # Load SpaCy data
+            with open(spacy_path, 'r', encoding='utf-8') as f:
+                spacy_data = json.load(f)
         
-        if not spacy_path.exists():
-            raise HTTPException(
-                status_code=404,
-                detail=f"SpaCy annotation file not found. Please run SpaCy annotation first."
-            )
-        
-        # Load SpaCy data
-        with open(spacy_path, 'r', encoding='utf-8') as f:
-            spacy_data = json.load(f)
-        
-        if not spacy_data.get('success', False):
+        if not spacy_data or not spacy_data.get('success', False):
             raise HTTPException(
                 status_code=400,
                 detail="SpaCy annotation data is not valid"

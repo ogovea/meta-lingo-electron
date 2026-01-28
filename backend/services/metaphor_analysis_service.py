@@ -66,6 +66,24 @@ class MetaphorAnalysisService:
                         transcript_data = json.load(f)
                     mipvu_data = transcript_data.get('mipvu_annotations')
                     if mipvu_data:
+                        # Handle segment-based format from annotate_segments
+                        if 'segments' in mipvu_data and 'sentences' not in mipvu_data:
+                            # Merge sentences from all segments' mipvu_data
+                            all_sentences = []
+                            total_stats = {'total_tokens': 0, 'metaphor_tokens': 0, 'literal_tokens': 0}
+                            for seg in mipvu_data.get('segments', []):
+                                seg_mipvu = seg.get('mipvu_data', {})
+                                if seg_mipvu.get('success'):
+                                    all_sentences.extend(seg_mipvu.get('sentences', []))
+                                    seg_stats = seg_mipvu.get('statistics', {})
+                                    total_stats['total_tokens'] += seg_stats.get('total_tokens', 0)
+                                    total_stats['metaphor_tokens'] += seg_stats.get('metaphor_tokens', 0)
+                                    total_stats['literal_tokens'] += seg_stats.get('literal_tokens', 0)
+                            mipvu_data = {
+                                'success': True,
+                                'sentences': all_sentences,
+                                'statistics': total_stats
+                            }
                         logger.debug(f"Loaded MIPVU from transcript: {len(mipvu_data.get('sentences', []))} sentences")
                     return mipvu_data
                 except Exception as e:

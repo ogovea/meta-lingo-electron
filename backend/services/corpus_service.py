@@ -223,22 +223,27 @@ class CorpusService:
         
         content = None
         transcript = None
+        media_type = text.get('media_type', 'text')
         
-        # Read text content
-        if text.get('content_path') and os.path.exists(text['content_path']):
-            try:
-                with open(text['content_path'], 'r', encoding='utf-8') as f:
-                    content = f.read()
-            except Exception as e:
-                logger.error(f"Failed to read content: {e}")
-        
-        # Read transcript JSON if available
+        # Read transcript JSON if available (for audio/video)
         if text.get('transcript_json_path') and os.path.exists(text['transcript_json_path']):
             try:
                 with open(text['transcript_json_path'], 'r', encoding='utf-8') as f:
                     transcript = json.load(f)
             except Exception as e:
                 logger.error(f"Failed to read transcript: {e}")
+        
+        # For audio/video, use segments joined with space to ensure consistent offsets
+        # This must match the offset calculation in get_spacy_annotation and get_mipvu_annotation
+        if media_type in ['audio', 'video'] and transcript and transcript.get('segments'):
+            content = ' '.join(seg.get('text', '') for seg in transcript['segments'])
+        elif text.get('content_path') and os.path.exists(text['content_path']):
+            # For plain text, read from file
+            try:
+                with open(text['content_path'], 'r', encoding='utf-8') as f:
+                    content = f.read()
+            except Exception as e:
+                logger.error(f"Failed to read content: {e}")
         
         return {
             "success": True,

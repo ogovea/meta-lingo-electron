@@ -17,12 +17,13 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v3.8.93-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-v3.8.95-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey.svg" alt="Platform">
   <img src="https://img.shields.io/badge/license-Non--Commercial-green.svg" alt="License">
 </p>
 
 <p align="center">
+  <a href="https://huggingface.co/tommyleo2077"><img src="https://img.shields.io/badge/Hugging%20Face-FFD21E?style=flat&logo=huggingface&logoColor=black" alt="Hugging Face"></a>
   <a href="https://space.bilibili.com/294707614"><img src="https://img.shields.io/badge/Bilibili-00A1D6?style=flat&logo=bilibili&logoColor=white" alt="Bilibili"></a>
   <a href="https://xhslink.com/m/9z8ubyF4b4N"><img src="https://img.shields.io/badge/Xiaohongshu-FF2442?style=flat&logo=xiaohongshu&logoColor=white" alt="Xiaohongshu"></a>
   <a href="https://v.douyin.com/euiu1OJ9jB4/"><img src="https://img.shields.io/badge/Douyin-000000?style=flat&logo=tiktok&logoColor=white" alt="Douyin"></a>

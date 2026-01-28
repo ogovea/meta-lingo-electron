@@ -572,13 +572,13 @@ async def reannotate_spacy(
                                       status="failed")
             
             else:
-                # Audio/Video - re-annotate the transcript
+                # Audio/Video - re-annotate the transcript with SpaCy + USAS + MIPVU
                 transcript_path = text.get('transcript_json_path')
                 if not transcript_path or not os.path.exists(transcript_path):
                     send_progress_sync(task_id, "error", 0, "Transcript file not found", status="failed")
                     return
                 
-                send_progress_sync(task_id, "spacy", 20, "Reading transcript...")
+                send_progress_sync(task_id, "spacy", 15, "Reading transcript...")
                 
                 with open(transcript_path, 'r', encoding='utf-8') as f:
                     transcript_data = json.load(f)
@@ -588,33 +588,94 @@ async def reannotate_spacy(
                     send_progress_sync(task_id, "error", 0, "No transcript segments found", status="failed")
                     return
                 
-                send_progress_sync(task_id, "spacy", 30, f"Running SpaCy annotation ({len(segments)} segments)...")
+                # SpaCy annotation (15-45%)
+                send_progress_sync(task_id, "spacy", 20, f"Running SpaCy annotation ({len(segments)} segments)...")
                 
-                result = spacy_svc.annotate_segments(segments, language)
+                spacy_result = spacy_svc.annotate_segments(segments, language)
                 
-                if result.get("success"):
-                    chunk_info = result.get("chunk_info", {})
+                if spacy_result.get("success"):
+                    chunk_info = spacy_result.get("chunk_info", {})
                     if chunk_info:
                         chunk_msg = f" ({chunk_info.get('successful_chunks', 0)}/{chunk_info.get('total_chunks', 0)} chunks)"
                     else:
                         chunk_msg = ""
                     
-                    send_progress_sync(task_id, "spacy", 80, f"Saving annotation{chunk_msg}...")
+                    send_progress_sync(task_id, "spacy", 45, f"SpaCy completed{chunk_msg}")
                     
                     # Update transcript with SpaCy annotations
-                    transcript_data['spacy_annotations'] = result
+                    transcript_data['spacy_annotations'] = spacy_result
                     
+                    # USAS annotation (45-70%, only for Chinese and English)
+                    send_progress_sync(task_id, "usas", 45, "Starting USAS annotation...")
+                    
+                    usas_svc = get_usas_service()
+                    if usas_svc.is_available(language):
+                        text_type = corpus.get('text_type') if corpus else None
+                        
+                        usas_result = usas_svc.annotate_segments(segments, language, text_type)
+                        if usas_result.get("success"):
+                            transcript_data['usas_annotations'] = usas_result
+                            send_progress_sync(task_id, "usas", 70, "USAS annotation completed")
+                    else:
+                        send_progress_sync(task_id, "usas", 70, "USAS not available for this language, skipping...")
+                    
+                    # MIPVU annotation (70-95%, only for English)
+                    send_progress_sync(task_id, "mipvu", 70, "Starting MIPVU annotation...")
+                    
+                    from services.mipvu_service import get_mipvu_service
+                    mipvu_svc = get_mipvu_service()
+                    
+                    if mipvu_svc.is_available(language):
+                        def media_mipvu_progress_callback(progress, message):
+                            overall_progress = 70 + int(progress * 0.25)
+                            send_progress_sync(task_id, "mipvu", overall_progress, message)
+                        
+                        # Merge SpaCy data into segments for MIPVU
+                        spacy_segments = spacy_result.get('segments', {})
+                        segments_with_spacy = []
+                        for seg in segments:
+                            seg_id = seg.get('id', 0)
+                            seg_spacy = spacy_segments.get(seg_id, spacy_segments.get(str(seg_id), {}))
+                            # Convert SpaCy segment format to MIPVU expected format
+                            spacy_data = None
+                            if seg_spacy and seg_spacy.get('tokens'):
+                                spacy_data = {
+                                    'sentences': [{
+                                        'tokens': [
+                                            {
+                                                'word': t.get('text', ''),
+                                                'lemma': t.get('lemma', ''),
+                                                'pos': t.get('pos', ''),
+                                                'tag': t.get('tag', ''),
+                                                'dep': t.get('dep', '')
+                                            } for t in seg_spacy.get('tokens', [])
+                                        ]
+                                    }]
+                                }
+                            segments_with_spacy.append({**seg, 'spacy_data': spacy_data})
+                        
+                        mipvu_result = mipvu_svc.annotate_segments(segments_with_spacy, language, media_mipvu_progress_callback)
+                        if mipvu_result:
+                            transcript_data['mipvu_annotations'] = {"success": True, "segments": mipvu_result}
+                            send_progress_sync(task_id, "mipvu", 95, "MIPVU annotation completed")
+                        else:
+                            logger.warning("MIPVU annotation returned empty result during re-annotation")
+                            send_progress_sync(task_id, "mipvu", 95, "MIPVU returned empty result")
+                    else:
+                        send_progress_sync(task_id, "mipvu", 95, "MIPVU not available for this language, skipping...")
+                    
+                    # Save all annotations to transcript JSON
                     with open(transcript_path, 'w', encoding='utf-8') as f:
                         json.dump(transcript_data, f, ensure_ascii=False, indent=2)
                     
-                    token_count = result.get("total_tokens", 0)
+                    token_count = spacy_result.get("total_tokens", 0)
                     send_progress_sync(task_id, "completed", 100, 
-                                      f"SpaCy annotation completed: {token_count} tokens",
+                                      f"Full annotation completed: {token_count} tokens",
                                       status="completed",
-                                      result={"tokens": token_count, "segments": len(result.get("segments", {}))})
+                                      result={"tokens": token_count, "segments": len(spacy_result.get("segments", {}))})
                 else:
                     send_progress_sync(task_id, "error", 0, 
-                                      result.get("error", "SpaCy annotation failed"), 
+                                      spacy_result.get("error", "SpaCy annotation failed"), 
                                       status="failed")
         
         except Exception as e:
@@ -1123,7 +1184,33 @@ async def update_transcript_segments(corpus_id: str, text_id: str, data: dict):
             
             if mipvu_svc.is_available(language):
                 logger.info(f"Regenerating MIPVU annotations for {len(existing_segments)} segments...")
-                mipvu_result = mipvu_svc.annotate_segments(existing_segments, language)
+                
+                # Merge SpaCy data into segments for MIPVU
+                spacy_result = transcript_data.get('spacy_annotations', {})
+                spacy_segments = spacy_result.get('segments', {})
+                segments_with_spacy = []
+                for seg in existing_segments:
+                    seg_id = seg.get('id', 0)
+                    seg_spacy = spacy_segments.get(seg_id, spacy_segments.get(str(seg_id), {}))
+                    # Convert SpaCy segment format to MIPVU expected format
+                    spacy_data = None
+                    if seg_spacy and seg_spacy.get('tokens'):
+                        spacy_data = {
+                            'sentences': [{
+                                'tokens': [
+                                    {
+                                        'word': t.get('text', ''),
+                                        'lemma': t.get('lemma', ''),
+                                        'pos': t.get('pos', ''),
+                                        'tag': t.get('tag', ''),
+                                        'dep': t.get('dep', '')
+                                    } for t in seg_spacy.get('tokens', [])
+                                ]
+                            }]
+                        }
+                    segments_with_spacy.append({**seg, 'spacy_data': spacy_data})
+                
+                mipvu_result = mipvu_svc.annotate_segments(segments_with_spacy, language)
                 
                 if mipvu_result:
                     transcript_data['mipvu_annotations'] = {
@@ -1305,9 +1392,11 @@ async def stream_media_file(corpus_id: str, text_id: str, request: Request):
 async def get_spacy_annotation(corpus_id: str, text_id: str):
     """Get SpaCy annotation for a text
     
-    For audio/video with transcripts, returns segment-based annotations
-    where each segment has tokens with positions starting from 0.
-    This ensures proper alignment with TranscriptAnnotator component.
+    For audio/video with transcripts, converts segment-based annotations
+    to the unified format expected by TextAnnotation component:
+    - tokens: merged with cumulative offset
+    - entities: merged with cumulative offset  
+    - sentences: each segment becomes a sentence
     """
     from models.database import TextDB
     
@@ -1317,18 +1406,74 @@ async def get_spacy_annotation(corpus_id: str, text_id: str):
     
     media_type = text.get('media_type', 'text')
     
-    # For audio/video, prioritize transcript JSON with segment-based annotations
-    # These have per-segment token positions (starting from 0 for each segment)
+    # For audio/video, convert segment-based format to unified format
     if media_type in ['audio', 'video']:
         transcript_json = text.get('transcript_json_path')
         if transcript_json and os.path.exists(transcript_json):
             try:
                 with open(transcript_json, 'r', encoding='utf-8') as f:
                     transcript_data = json.load(f)
-                if 'spacy_annotations' in transcript_data:
+                
+                spacy_annotations = transcript_data.get('spacy_annotations', {})
+                segments = transcript_data.get('segments', [])
+                
+                if spacy_annotations and spacy_annotations.get('success') and segments:
+                    # Convert segment-based format to unified format
+                    all_tokens = []
+                    all_entities = []
+                    all_sentences = []
+                    
+                    spacy_segments = spacy_annotations.get('segments', {})
+                    current_offset = 0
+                    
+                    for seg in segments:
+                        seg_id = seg.get('id', 0)
+                        seg_text = seg.get('text', '')
+                        
+                        # Get SpaCy data for this segment
+                        seg_spacy = spacy_segments.get(seg_id, spacy_segments.get(str(seg_id), {}))
+                        
+                        # Add sentence entry
+                        all_sentences.append({
+                            'text': seg_text,
+                            'start': current_offset,
+                            'end': current_offset + len(seg_text)
+                        })
+                        
+                        # Add tokens with offset adjustment
+                        for token in seg_spacy.get('tokens', []):
+                            all_tokens.append({
+                                'text': token.get('text', ''),
+                                'start': current_offset + token.get('start', 0),
+                                'end': current_offset + token.get('end', 0),
+                                'pos': token.get('pos', ''),
+                                'tag': token.get('tag', ''),
+                                'lemma': token.get('lemma', ''),
+                                'dep': token.get('dep', ''),
+                                'morph': token.get('morph', '')
+                            })
+                        
+                        # Add entities with offset adjustment
+                        for entity in seg_spacy.get('entities', []):
+                            all_entities.append({
+                                'text': entity.get('text', ''),
+                                'start': current_offset + entity.get('start', 0),
+                                'end': current_offset + entity.get('end', 0),
+                                'label': entity.get('label', ''),
+                                'description': entity.get('description', '')
+                            })
+                        
+                        # Update offset for next segment (add space separator)
+                        current_offset += len(seg_text) + 1  # +1 for space between segments
+                    
                     return {
                         "success": True,
-                        "data": transcript_data['spacy_annotations']
+                        "data": {
+                            "success": True,
+                            "tokens": all_tokens,
+                            "entities": all_entities,
+                            "sentences": all_sentences
+                        }
                     }
             except Exception as e:
                 logger.warning(f"Failed to load transcript SpaCy: {e}")
@@ -1904,7 +2049,8 @@ async def reannotate_usas(
 async def get_mipvu_annotation(corpus_id: str, text_id: str):
     """Get MIPVU metaphor annotation for a text
     
-    Returns the MIPVU annotation data if available.
+    For audio/video, converts segment-based MIPVU data to the unified format
+    expected by the frontend with proper character offsets.
     """
     from models.database import TextDB
     
@@ -1914,17 +2060,75 @@ async def get_mipvu_annotation(corpus_id: str, text_id: str):
     
     media_type = text.get('media_type', 'text')
     
-    # For audio/video, check transcript JSON for MIPVU annotations
+    # For audio/video, convert segment-based format to unified format
     if media_type in ['audio', 'video']:
         transcript_json = text.get('transcript_json_path')
         if transcript_json and os.path.exists(transcript_json):
             try:
                 with open(transcript_json, 'r', encoding='utf-8') as f:
                     transcript_data = json.load(f)
-                if 'mipvu_annotations' in transcript_data:
+                
+                mipvu_annotations = transcript_data.get('mipvu_annotations')
+                segments = transcript_data.get('segments', [])
+                
+                if mipvu_annotations and mipvu_annotations.get('success') and mipvu_annotations.get('segments'):
+                    # Convert segment-based MIPVU to unified format
+                    all_sentences = []
+                    total_stats = {'total_tokens': 0, 'metaphor_tokens': 0, 'literal_tokens': 0}
+                    
+                    mipvu_segments = mipvu_annotations.get('segments', [])
+                    current_offset = 0
+                    
+                    # Calculate offset for each original segment
+                    segment_offsets = {}
+                    for seg in segments:
+                        seg_id = seg.get('id', 0)
+                        seg_text = seg.get('text', '')
+                        segment_offsets[seg_id] = current_offset
+                        segment_offsets[str(seg_id)] = current_offset
+                        current_offset += len(seg_text) + 1  # +1 for space
+                    
+                    # Process MIPVU segments
+                    for mipvu_seg in mipvu_segments:
+                        seg_id = mipvu_seg.get('id', 0)
+                        seg_mipvu = mipvu_seg.get('mipvu_data', {})
+                        
+                        if seg_mipvu.get('success'):
+                            offset = segment_offsets.get(seg_id, segment_offsets.get(str(seg_id), 0))
+                            
+                            # Process sentences and adjust token positions
+                            for sentence in seg_mipvu.get('sentences', []):
+                                adjusted_tokens = []
+                                for token in sentence.get('tokens', []):
+                                    adjusted_tokens.append({
+                                        **token,
+                                        'start': offset + token.get('start', 0),
+                                        'end': offset + token.get('end', 0)
+                                    })
+                                all_sentences.append({
+                                    'text': sentence.get('text', ''),
+                                    'tokens': adjusted_tokens
+                                })
+                            
+                            # Aggregate statistics
+                            seg_stats = seg_mipvu.get('statistics', {})
+                            total_stats['total_tokens'] += seg_stats.get('total_tokens', 0)
+                            total_stats['metaphor_tokens'] += seg_stats.get('metaphor_tokens', 0)
+                            total_stats['literal_tokens'] += seg_stats.get('literal_tokens', 0)
+                    
+                    # Calculate metaphor rate
+                    if total_stats['total_tokens'] > 0:
+                        total_stats['metaphor_rate'] = total_stats['metaphor_tokens'] / total_stats['total_tokens']
+                    else:
+                        total_stats['metaphor_rate'] = 0.0
+                    
                     return {
                         "success": True,
-                        "data": transcript_data['mipvu_annotations']
+                        "data": {
+                            "success": True,
+                            "sentences": all_sentences,
+                            "statistics": total_stats
+                        }
                     }
             except Exception as e:
                 logger.warning(f"Failed to load transcript MIPVU: {e}")
@@ -2082,7 +2286,32 @@ async def reannotate_mipvu(
                     overall_progress = 15 + int(progress * 0.75)
                     send_progress_sync(task_id, "mipvu", overall_progress, message)
                 
-                result = mipvu_svc.annotate_segments(segments, language, mipvu_progress_callback)
+                # Merge SpaCy data into segments for MIPVU
+                spacy_result = transcript_data.get('spacy_annotations', {})
+                spacy_segments = spacy_result.get('segments', {})
+                segments_with_spacy = []
+                for seg in segments:
+                    seg_id = seg.get('id', 0)
+                    seg_spacy = spacy_segments.get(seg_id, spacy_segments.get(str(seg_id), {}))
+                    # Convert SpaCy segment format to MIPVU expected format
+                    spacy_data = None
+                    if seg_spacy and seg_spacy.get('tokens'):
+                        spacy_data = {
+                            'sentences': [{
+                                'tokens': [
+                                    {
+                                        'word': t.get('text', ''),
+                                        'lemma': t.get('lemma', ''),
+                                        'pos': t.get('pos', ''),
+                                        'tag': t.get('tag', ''),
+                                        'dep': t.get('dep', '')
+                                    } for t in seg_spacy.get('tokens', [])
+                                ]
+                            }]
+                        }
+                    segments_with_spacy.append({**seg, 'spacy_data': spacy_data})
+                
+                result = mipvu_svc.annotate_segments(segments_with_spacy, language, mipvu_progress_callback)
                 
                 if result:
                     send_progress_sync(task_id, "mipvu", 92, "Saving annotation...")
@@ -2477,6 +2706,15 @@ def process_media_file_sync(
     logger.info(f"=== Starting background processing for task {task_id} ===")
     service = get_corpus_service()
     
+    # Get corpus info for text_type (used by USAS)
+    from models.database import TextDB, CorpusDB
+    text = TextDB.get_by_id(text_id)
+    corpus = None
+    if text:
+        corpus_id = text.get('corpus_id')
+        if corpus_id:
+            corpus = CorpusDB.get_by_id(corpus_id)
+    
     try:
         if media_type == MediaType.AUDIO:
             # Process audio with progress
@@ -2492,9 +2730,9 @@ def process_media_file_sync(
             
             send_progress_sync(task_id, "transcribing", 10, "Starting transcription...")
             
-            # Define progress callback
+            # Define progress callback (transcription: 10-50%)
             def audio_progress_callback(current, total, msg):
-                pct = 10 + int((current / max(total, 1)) * 70)
+                pct = 10 + int((current / max(total, 1)) * 40)
                 send_progress_sync(task_id, "transcribing", pct, msg)
             
             # Transcribe
@@ -2510,14 +2748,18 @@ def process_media_file_sync(
                                   status="failed")
                 return
             
-            send_progress_sync(task_id, "spacy", 85, "Running SpaCy annotation...")
+            send_progress_sync(task_id, "spacy", 50, "Running SpaCy annotation...")
             
-            # SpaCy annotation
+            # SpaCy annotation (50-60%)
             from services.spacy_service import get_spacy_service
             spacy_svc = get_spacy_service()
             
+            spacy_result = None
+            json_path = result.get('json_path')
+            transcript_data = None
+            segments = []
+            
             if spacy_svc.is_available(language):
-                json_path = result.get('json_path')
                 if json_path and os.path.exists(json_path):
                     with open(json_path, 'r', encoding='utf-8') as f:
                         transcript_data = json.load(f)
@@ -2527,8 +2769,70 @@ def process_media_file_sync(
                         spacy_result = spacy_svc.annotate_segments(segments, language)
                         if spacy_result.get("success"):
                             transcript_data['spacy_annotations'] = spacy_result
-                            with open(json_path, 'w', encoding='utf-8') as f:
-                                json.dump(transcript_data, f, ensure_ascii=False, indent=2)
+                            send_progress_sync(task_id, "spacy", 60, "SpaCy annotation completed")
+            
+            # USAS annotation (60-80%, only for Chinese and English)
+            send_progress_sync(task_id, "usas", 60, "Starting USAS annotation...")
+            
+            from services.usas_service import get_usas_service
+            usas_svc = get_usas_service()
+            
+            if usas_svc.is_available(language) and transcript_data and segments:
+                text_type = corpus.get('text_type') if corpus else None
+                
+                usas_result = usas_svc.annotate_segments(segments, language, text_type)
+                if usas_result.get("success"):
+                    transcript_data['usas_annotations'] = usas_result
+                    send_progress_sync(task_id, "usas", 80, "USAS annotation completed")
+            else:
+                send_progress_sync(task_id, "usas", 80, "USAS not available for this language, skipping...")
+            
+            # MIPVU annotation (80-95%, only for English)
+            send_progress_sync(task_id, "mipvu", 80, "Starting MIPVU annotation...")
+            
+            from services.mipvu_service import get_mipvu_service
+            mipvu_svc = get_mipvu_service()
+            
+            if mipvu_svc.is_available(language) and transcript_data and segments and spacy_result:
+                def mipvu_progress_callback(progress, message):
+                    overall_progress = 80 + int(progress * 0.15)
+                    send_progress_sync(task_id, "mipvu", overall_progress, message)
+                
+                # Merge SpaCy data into segments for MIPVU
+                spacy_segments = spacy_result.get('segments', {})
+                segments_with_spacy = []
+                for seg in segments:
+                    seg_id = seg.get('id', 0)
+                    seg_spacy = spacy_segments.get(seg_id, spacy_segments.get(str(seg_id), {}))
+                    # Convert SpaCy segment format to MIPVU expected format
+                    spacy_data = None
+                    if seg_spacy and seg_spacy.get('tokens'):
+                        spacy_data = {
+                            'sentences': [{
+                                'tokens': [
+                                    {
+                                        'word': t.get('text', ''),
+                                        'lemma': t.get('lemma', ''),
+                                        'pos': t.get('pos', ''),
+                                        'tag': t.get('tag', ''),
+                                        'dep': t.get('dep', '')
+                                    } for t in seg_spacy.get('tokens', [])
+                                ]
+                            }]
+                        }
+                    segments_with_spacy.append({**seg, 'spacy_data': spacy_data})
+                
+                mipvu_result = mipvu_svc.annotate_segments(segments_with_spacy, language, mipvu_progress_callback)
+                if mipvu_result:
+                    transcript_data['mipvu_annotations'] = {"success": True, "segments": mipvu_result}
+                    send_progress_sync(task_id, "mipvu", 95, "MIPVU annotation completed")
+            else:
+                send_progress_sync(task_id, "mipvu", 95, "MIPVU not available for this language, skipping...")
+            
+            # Save all annotations to transcript JSON
+            if transcript_data and json_path:
+                with open(json_path, 'w', encoding='utf-8') as f:
+                    json.dump(transcript_data, f, ensure_ascii=False, indent=2)
             
             send_progress_sync(task_id, "database", 95, "Updating database...")
             
@@ -2630,13 +2934,30 @@ def process_media_file_sync(
                         results["transcript"] = transcript_result
                         
                         if transcript_result.get("success"):
-                            spacy_progress = transcribe_end - 5
-                            send_progress_sync(task_id, "spacy", spacy_progress, "Running SpaCy annotation on transcript...")
+                            # Calculate progress ranges for annotation stages
+                            # If YOLO/CLIP selected, annotations get smaller ranges
+                            has_additional_tasks = yolo_annotation or clip_annotation
+                            if has_additional_tasks:
+                                spacy_start = transcribe_end - 15
+                                usas_start = transcribe_end - 10
+                                mipvu_start = transcribe_end - 5
+                                annotation_end = transcribe_end
+                            else:
+                                spacy_start = transcribe_end - 30
+                                usas_start = transcribe_end - 20
+                                mipvu_start = transcribe_end - 10
+                                annotation_end = transcribe_end
+                            
+                            send_progress_sync(task_id, "spacy", spacy_start, "Running SpaCy annotation on transcript...")
                             
                             # SpaCy annotation
                             spacy_svc = get_spacy_service()
+                            spacy_result = None
+                            json_path = transcript_result.get('json_path')
+                            transcript_data = None
+                            segments = []
+                            
                             if spacy_svc.is_available(language):
-                                json_path = transcript_result.get('json_path')
                                 if json_path and os.path.exists(json_path):
                                     with open(json_path, 'r', encoding='utf-8') as f:
                                         transcript_data = json.load(f)
@@ -2648,8 +2969,66 @@ def process_media_file_sync(
                                         
                                         if spacy_result.get("success"):
                                             transcript_data['spacy_annotations'] = spacy_result
-                                            with open(json_path, 'w', encoding='utf-8') as f:
-                                                json.dump(transcript_data, f, ensure_ascii=False, indent=2)
+                            
+                            # USAS annotation (only for Chinese and English)
+                            send_progress_sync(task_id, "usas", usas_start, "Running USAS annotation...")
+                            
+                            from services.usas_service import get_usas_service
+                            usas_svc = get_usas_service()
+                            
+                            if usas_svc.is_available(language) and transcript_data and segments:
+                                text_type = corpus.get('text_type') if corpus else None
+                                
+                                usas_result = usas_svc.annotate_segments(segments, language, text_type)
+                                if usas_result.get("success"):
+                                    transcript_data['usas_annotations'] = usas_result
+                                    results["usas"] = usas_result
+                            
+                            # MIPVU annotation (only for English)
+                            send_progress_sync(task_id, "mipvu", mipvu_start, "Running MIPVU annotation...")
+                            
+                            from services.mipvu_service import get_mipvu_service
+                            mipvu_svc = get_mipvu_service()
+                            
+                            if mipvu_svc.is_available(language) and transcript_data and segments and spacy_result:
+                                def video_mipvu_callback(progress, message):
+                                    pct = mipvu_start + int(progress * (annotation_end - mipvu_start) / 100)
+                                    send_progress_sync(task_id, "mipvu", pct, message)
+                                
+                                # Merge SpaCy data into segments for MIPVU
+                                spacy_segments = spacy_result.get('segments', {})
+                                segments_with_spacy = []
+                                for seg in segments:
+                                    seg_id = seg.get('id', 0)
+                                    seg_spacy = spacy_segments.get(seg_id, spacy_segments.get(str(seg_id), {}))
+                                    # Convert SpaCy segment format to MIPVU expected format
+                                    spacy_data = None
+                                    if seg_spacy and seg_spacy.get('tokens'):
+                                        spacy_data = {
+                                            'sentences': [{
+                                                'tokens': [
+                                                    {
+                                                        'word': t.get('text', ''),
+                                                        'lemma': t.get('lemma', ''),
+                                                        'pos': t.get('pos', ''),
+                                                        'tag': t.get('tag', ''),
+                                                        'dep': t.get('dep', '')
+                                                    } for t in seg_spacy.get('tokens', [])
+                                                ]
+                                            }]
+                                        }
+                                    segments_with_spacy.append({**seg, 'spacy_data': spacy_data})
+                                
+                                mipvu_result = mipvu_svc.annotate_segments(segments_with_spacy, language, video_mipvu_callback)
+                                if mipvu_result:
+                                    mipvu_annotations = {"success": True, "segments": mipvu_result}
+                                    transcript_data['mipvu_annotations'] = mipvu_annotations
+                                    results["mipvu"] = mipvu_annotations
+                            
+                            # Save all annotations to transcript JSON
+                            if transcript_data and json_path:
+                                with open(json_path, 'w', encoding='utf-8') as f:
+                                    json.dump(transcript_data, f, ensure_ascii=False, indent=2)
                             
                             # Update database with transcript info (don't send database stage yet if YOLO is pending)
                             update_data = {

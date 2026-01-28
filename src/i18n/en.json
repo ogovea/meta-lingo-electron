@@ -1281,6 +1281,7 @@
     "autoAnnotateMipvu": "Auto-annotate metaphors (MIPVU indirect)",
     "autoAnnotateTheme": "Auto-annotate Theme/Rheme",
     "autoAnnotateDisabled": "Current framework does not support auto-annotation",
+    "autoAnnotateNotSupportedForMedia": "Auto-annotation not supported for audio/video transcripts",
     "autoAnnotateSuccess": "Auto-added {{count}} annotations",
     "autoAnnotateError": "Auto-annotation failed",
     "noMetaphorFound": "No metaphors found",

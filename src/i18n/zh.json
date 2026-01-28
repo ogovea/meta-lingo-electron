@@ -1303,6 +1303,7 @@
     "autoAnnotateMipvu": "自动标注隐喻词 (MIPVU indirect)",
     "autoAnnotateTheme": "自动标注主题/述题 (Theme/Rheme)",
     "autoAnnotateDisabled": "当前框架不支持自动标注",
+    "autoAnnotateNotSupportedForMedia": "音视频转录文本暂不支持自动标注",
     "autoAnnotateSuccess": "已自动添加 {{count}} 条标注",
     "autoAnnotateError": "自动标注失败",
     "noMetaphorFound": "未找到隐喻词",

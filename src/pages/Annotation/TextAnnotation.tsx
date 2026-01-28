@@ -785,13 +785,19 @@ export default function TextAnnotation() {
   // 检查当前框架是否支持自动标注
   const isAutoAnnotateEnabled = useCallback(() => {
     if (!currentFramework?.id) return false
+    // 音视频转录文本暂不支持自动标注
+    if (selectedText?.mediaType && selectedText.mediaType !== 'text') return false
     return isAutoAnnotationSupported(currentFramework.id)
-  }, [currentFramework])
+  }, [currentFramework, selectedText])
 
   // 获取自动标注按钮的提示文本
   const getAutoAnnotateTooltip = useCallback(() => {
     if (!currentFramework?.id) {
       return t('annotation.autoAnnotateDisabled', '当前框架不支持自动标注')
+    }
+    // 音视频转录文本暂不支持自动标注
+    if (selectedText?.mediaType && selectedText.mediaType !== 'text') {
+      return t('annotation.autoAnnotateNotSupportedForMedia', '音视频转录文本暂不支持自动标注')
     }
     const annotationType = getAutoAnnotationType(currentFramework.id)
     if (annotationType === 'mipvu') {
@@ -801,7 +807,7 @@ export default function TextAnnotation() {
       return t('annotation.autoAnnotateTheme', '自动标注主题/述题')
     }
     return t('annotation.autoAnnotateDisabled', '当前框架不支持自动标注')
-  }, [currentFramework, t])
+  }, [currentFramework, selectedText, t])
 
   // 执行自动标注
   const handleAutoAnnotate = async () => {
