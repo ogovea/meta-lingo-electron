@@ -10,6 +10,8 @@ from typing import List, Dict, Any, Optional, Set, Tuple
 from pathlib import Path
 from functools import lru_cache
 
+from ..config import get_saves_dir
+
 logger = logging.getLogger(__name__)
 
 
@@ -180,13 +182,15 @@ class CorpusResourceService:
             corpus_dir: Path to corpus resource directory (default: saves/corpus)
         """
         if corpus_dir is None:
-            # Default to saves/corpus relative to backend
-            backend_dir = Path(__file__).parent.parent
-            corpus_dir = backend_dir.parent / "saves" / "corpus"
+            # Use config.py's get_saves_dir() for proper path resolution
+            # Works in both development and packaged mode
+            saves_dir = get_saves_dir()
+            corpus_dir = saves_dir / "corpus"
         
         self.corpus_dir = Path(corpus_dir)
         self._frequency_cache: Dict[str, Dict[str, int]] = {}
         logger.info(f"CorpusResourceService initialized with directory: {self.corpus_dir}")
+        logger.info(f"Corpus directory exists: {self.corpus_dir.exists()}")
     
     def _parse_csv_filename(self, filename: str) -> Tuple[str, str]:
         """
