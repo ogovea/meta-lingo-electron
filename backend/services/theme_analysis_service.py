@@ -123,17 +123,40 @@ class ThemeAnalysisService:
                 if theme_tokens:
                     actual_theme_end = max(t['end'] for t in theme_tokens)
                     theme_text = self._extract_text(sent_text, sent_start, actual_theme_end, sent_start)
-                    rheme_text = self._extract_text(sent_text, actual_theme_end, sent_end, sent_start)
+                    
+                    # Calculate rheme_start: skip the first character after theme (space or punctuation)
+                    # This ensures rheme doesn't include leading separators for better visual appearance
+                    rheme_start = actual_theme_end
+                    relative_rheme_start = rheme_start - sent_start
+                    
+                    # Skip the first character after theme (regardless of what it is: space, punctuation, etc.)
+                    if relative_rheme_start < len(sent_text):
+                        first_char = sent_text[relative_rheme_start]
+                        # Skip if it's whitespace or punctuation
+                        if first_char in ' \t' or not first_char.isalnum():
+                            rheme_start += 1
+                            relative_rheme_start += 1
+                    
+                    # Continue skipping any remaining leading whitespace
+                    while relative_rheme_start < len(sent_text) and sent_text[relative_rheme_start] in ' \t':
+                        rheme_start += 1
+                        relative_rheme_start += 1
+                    
+                    rheme_text = self._extract_text(sent_text, rheme_start, sent_end, sent_start)
+                    
+                    # Only include rheme if it has meaningful content (more than 1 character)
+                    final_rheme_text = rheme_text.strip()
+                    has_valid_rheme = len(final_rheme_text) > 1
                     
                     results.append({
                         'sentence_index': sent_idx,
                         'sentence_text': sent_text,
                         'theme_start': sent_start,
                         'theme_end': actual_theme_end,
-                        'rheme_start': actual_theme_end,
-                        'rheme_end': sent_end,
+                        'rheme_start': rheme_start if has_valid_rheme else sent_end,
+                        'rheme_end': sent_end if has_valid_rheme else sent_end,
                         'theme_text': theme_text.strip(),
-                        'rheme_text': rheme_text.strip()
+                        'rheme_text': final_rheme_text if has_valid_rheme else ''
                     })
                     continue
             

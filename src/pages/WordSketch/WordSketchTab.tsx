@@ -41,7 +41,8 @@ import {
   TableHead,
   TableRow,
   Tooltip,
-  SelectChangeEvent
+  SelectChangeEvent,
+  useTheme
 } from '@mui/material'
 import SearchIcon from '@mui/icons-material/Search'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
@@ -80,6 +81,8 @@ interface WordSketchTabProps {
 
 export default function WordSketchTab({ crossLinkParams }: WordSketchTabProps) {
   const { t } = useTranslation()
+  const theme = useTheme()
+  const isDarkMode = theme.palette.mode === 'dark'
 
   // Corpus state
   const [corpora, setCorpora] = useState<Corpus[]>([])
@@ -781,7 +784,7 @@ export default function WordSketchTab({ crossLinkParams }: WordSketchTabProps) {
                                   label={`${Math.min(getDisplayedCount(relName), collocations.length)} / ${totalCount}`}
                                   size="small"
                                   sx={{ 
-                                    bgcolor: 'rgba(255,255,255,0.2)',
+                                    bgcolor: isDarkMode ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)',
                                     color: 'inherit',
                                     fontWeight: 500
                                   }}

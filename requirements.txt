@@ -50,6 +50,11 @@ opencv-python==4.11.0.86
 # Audio/Video Processing - FFmpeg
 imageio-ffmpeg==0.6.0
 
+# Audio Processing - Forced Alignment & Pitch
+librosa==0.11.0
+soundfile==0.13.1
+resampy==0.4.3
+
 # Utilities
 pydantic==2.12.5
 pydantic_core==2.41.5

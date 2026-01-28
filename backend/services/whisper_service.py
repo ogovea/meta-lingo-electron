@@ -1,6 +1,7 @@
 """
 Whisper Audio Transcription Service
 Uses Whisper Large V3 Turbo for speech-to-text with timestamps
+For English audio, also performs forced alignment (Wav2Vec2) and pitch extraction (TorchCrepe)
 """
 
 import os
@@ -13,6 +14,10 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, asdict
 
 from config import MODELS_DIR
+
+# Import alignment and pitch services for English audio processing
+from services.alignment_service import get_alignment_service
+from services.pitch_service import get_pitch_service
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -381,6 +386,96 @@ class WhisperService:
             }
             
             logger.info(f"Transcription complete: {len(segments)} segments, {total_words} words")
+            
+            # For English audio, perform forced alignment and pitch extraction
+            detected_language = language or "auto"
+            # Check if language is English (either explicitly set or detected)
+            is_english = detected_language.lower() in ['en', 'english', 'auto']
+            # For auto-detection, check the first few words for common English patterns
+            if detected_language == 'auto' and full_text:
+                # Simple heuristic: check for common English words and characters
+                text_lower = full_text.lower()
+                english_indicators = ['the ', 'is ', 'are ', 'was ', 'were ', 'have ', 'has ', 'and ', 'or ', 'but ']
+                chinese_chars = sum(1 for c in full_text if '\u4e00' <= c <= '\u9fff')
+                english_score = sum(1 for ind in english_indicators if ind in text_lower)
+                # If has Chinese characters, not English
+                if chinese_chars > len(full_text) * 0.1:
+                    is_english = False
+                elif english_score >= 2:
+                    is_english = True
+                else:
+                    is_english = False
+            
+            if is_english:
+                logger.info("English audio detected, performing forced alignment and pitch extraction...")
+                
+                # Forced alignment with Wav2Vec2
+                try:
+                    if progress_callback:
+                        progress_callback(85, 100, "Performing forced alignment...")
+                    
+                    alignment_svc = get_alignment_service()
+                    alignment_result = alignment_svc.align_audio(
+                        str(audio_path), 
+                        full_text,
+                        progress_callback=lambda p, m: logger.info(f"Alignment: {p}% - {m}")
+                    )
+                    
+                    if alignment_result.get("success"):
+                        transcript_data["alignment"] = {
+                            "enabled": True,
+                            "word_alignments": alignment_result.get("word_alignments", []),
+                            "char_alignments": alignment_result.get("char_alignments", [])
+                        }
+                        logger.info(f"Forced alignment complete: {len(alignment_result.get('word_alignments', []))} words aligned")
+                    else:
+                        logger.warning(f"Forced alignment failed: {alignment_result.get('error')}")
+                        transcript_data["alignment"] = {"enabled": False, "error": alignment_result.get("error")}
+                        
+                except Exception as e:
+                    logger.error(f"Forced alignment error: {e}")
+                    transcript_data["alignment"] = {"enabled": False, "error": str(e)}
+                
+                # Pitch extraction with TorchCrepe
+                try:
+                    if progress_callback:
+                        progress_callback(92, 100, "Extracting pitch...")
+                    
+                    pitch_svc = get_pitch_service()
+                    pitch_result = pitch_svc.extract_pitch(
+                        str(audio_path),
+                        hop_length_ms=10.0,
+                        fmin=50.0,
+                        fmax=550.0,
+                        progress_callback=lambda p, m: logger.info(f"Pitch: {p}% - {m}")
+                    )
+                    
+                    if pitch_result.get("success"):
+                        transcript_data["pitch"] = {
+                            "enabled": True,
+                            "hop_length_ms": pitch_result.get("hop_length_ms", 10.0),
+                            "sample_rate": pitch_result.get("sample_rate", 16000),
+                            "fmin": pitch_result.get("fmin", 50.0),
+                            "fmax": pitch_result.get("fmax", 550.0),
+                            "f0": pitch_result.get("f0", []),
+                            "periodicity": pitch_result.get("periodicity", []),
+                            "times": pitch_result.get("times", [])
+                        }
+                        logger.info(f"Pitch extraction complete: {len(pitch_result.get('f0', []))} frames")
+                    else:
+                        logger.warning(f"Pitch extraction failed: {pitch_result.get('error')}")
+                        transcript_data["pitch"] = {"enabled": False, "error": pitch_result.get("error")}
+                        
+                except Exception as e:
+                    logger.error(f"Pitch extraction error: {e}")
+                    transcript_data["pitch"] = {"enabled": False, "error": str(e)}
+            else:
+                logger.info("Non-English audio detected, skipping alignment and pitch extraction")
+                transcript_data["alignment"] = {"enabled": False, "reason": "Non-English audio"}
+                transcript_data["pitch"] = {"enabled": False, "reason": "Non-English audio"}
+            
+            if progress_callback:
+                progress_callback(100, 100, "Processing complete")
             
             return {
                 "success": True,

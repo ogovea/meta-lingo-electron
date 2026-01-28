@@ -13,6 +13,7 @@ interface SankeyChartProps {
   data: NGramResult[]
   colorScheme: string
   onNodeClick?: (ngram: string) => void
+  isDarkMode?: boolean
 }
 
 interface SankeyNode {
@@ -41,7 +42,8 @@ const COLOR_PALETTES: Record<string, string[]> = {
 export default function SankeyChart({
   data,
   colorScheme,
-  onNodeClick
+  onNodeClick,
+  isDarkMode = false
 }: SankeyChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
@@ -194,7 +196,7 @@ export default function SankeyChart({
           .attr('transform', `translate(${x + 10},${y})`)
         
         tooltip.append('rect')
-          .attr('fill', 'rgba(0,0,0,0.8)')
+          .attr('fill', isDarkMode ? 'rgba(50,50,50,0.95)' : 'rgba(0,0,0,0.8)')
           .attr('rx', 4)
           .attr('x', 0)
           .attr('y', -14)
@@ -202,7 +204,7 @@ export default function SankeyChart({
           .attr('height', 28)
 
         tooltip.append('text')
-          .attr('fill', 'white')
+          .attr('fill', isDarkMode ? '#e0e0e0' : 'white')
           .attr('font-size', '11px')
           .attr('x', 8)
           .attr('y', 4)
@@ -225,7 +227,7 @@ export default function SankeyChart({
       .attr('height', (d: any) => d.y1 - d.y0)
       .attr('width', 15)
       .attr('fill', (d: any) => colorScale(d.position))
-      .attr('stroke', '#333')
+      .attr('stroke', isDarkMode ? '#555' : '#333')
       .attr('cursor', onNodeClick ? 'pointer' : 'default')
       .on('click', (_, d: any) => {
         if (onNodeClick) {
@@ -252,7 +254,7 @@ export default function SankeyChart({
       .attr('dy', '0.35em')
       .attr('text-anchor', (d: any) => d.x0 < width / 2 ? 'start' : 'end')
       .attr('font-size', '11px')
-      .attr('fill', '#333')
+      .attr('fill', isDarkMode ? '#e0e0e0' : '#333')
       .text((d: any) => d.name)
 
     // Add position labels at top
@@ -269,12 +271,12 @@ export default function SankeyChart({
           .attr('y', -5)
           .attr('text-anchor', 'middle')
           .attr('font-size', '10px')
-          .attr('fill', '#666')
+          .attr('fill', isDarkMode ? '#999' : '#666')
           .text(positionLabels[pos] || `Position ${pos + 1}`)
       }
     })
 
-  }, [data, dimensions, colorScheme, onNodeClick])
+  }, [data, dimensions, colorScheme, onNodeClick, isDarkMode])
 
   return (
     <Box 

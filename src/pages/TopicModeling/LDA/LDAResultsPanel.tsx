@@ -409,7 +409,7 @@ export default function LDAResultsPanel({
                             <span key={kw.word}>
                               <span style={{ 
                                 fontWeight: index < 3 ? 600 : 400,
-                                color: index < 3 ? '#333' : undefined
+                                color: index < 3 ? theme.palette.text.primary : undefined
                               }}>
                                 {kw.word}
                               </span>
@@ -683,7 +683,7 @@ export default function LDAResultsPanel({
             <TableContainer sx={{ maxHeight: 500 }}>
               <Table size="small" stickyHeader>
                 <TableHead>
-                  <TableRow sx={{ '& th': { bgcolor: 'grey.100', fontWeight: 600 } }}>
+                  <TableRow sx={{ '& th': { bgcolor: theme.palette.mode === 'dark' ? '#1e1e2e' : 'grey.100', fontWeight: 600 } }}>
                     <TableCell>{t('topicModeling.lda.results.docId', 'Doc')}</TableCell>
                     <TableCell>{t('topicModeling.lda.results.dominantTopic', 'Dominant Topic')}</TableCell>
                     <TableCell>{t('topicModeling.lda.results.weight', 'Weight')}</TableCell>

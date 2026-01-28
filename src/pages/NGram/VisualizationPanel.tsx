@@ -20,7 +20,8 @@ import {
   Switch,
   IconButton,
   Tooltip,
-  Divider
+  Divider,
+  useTheme
 } from '@mui/material'
 import BarChartIcon from '@mui/icons-material/BarChart'
 import BubbleChartIcon from '@mui/icons-material/BubbleChart'
@@ -60,6 +61,8 @@ export default function VisualizationPanel({
   onNgramClick
 }: VisualizationPanelProps) {
   const { t } = useTranslation()
+  const theme = useTheme()
+  const isDarkMode = theme.palette.mode === 'dark'
   const [activeTab, setActiveTab] = useState<NGramChartType>(config.chartType)
   const chartContainerRef = useRef<HTMLDivElement>(null)
 
@@ -427,6 +430,7 @@ export default function VisualizationPanel({
               data={chartData}
               colorScheme={config.colorScheme}
               onNodeClick={onNgramClick}
+              isDarkMode={isDarkMode}
             />
           </Box>
         )
@@ -437,6 +441,7 @@ export default function VisualizationPanel({
               data={chartData}
               colorScheme={config.colorScheme}
               onNodeClick={onNgramClick}
+              isDarkMode={isDarkMode}
             />
           </Box>
         )

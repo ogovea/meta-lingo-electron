@@ -21,7 +21,8 @@ import {
   IconButton,
   Tooltip,
   Chip,
-  CircularProgress
+  CircularProgress,
+  useTheme
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import SaveAltIcon from '@mui/icons-material/SaveAlt'
@@ -62,6 +63,8 @@ export default function VarianceDialog({
   onOptimizeComplete
 }: VarianceDialogProps) {
   const { t } = useTranslation()
+  const theme = useTheme()
+  const isDarkMode = theme.palette.mode === 'dark'
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
@@ -147,14 +150,14 @@ export default function VarianceDialog({
     const tooltip = d3.select(tooltipRef.current)
       .style('position', 'fixed')
       .style('visibility', 'hidden')
-      .style('background', 'rgba(0,0,0,0.85)')
-      .style('color', 'white')
+      .style('background', isDarkMode ? 'rgba(50,50,50,0.95)' : 'rgba(0,0,0,0.85)')
+      .style('color', isDarkMode ? '#e0e0e0' : 'white')
       .style('padding', '10px 14px')
       .style('border-radius', '6px')
       .style('font-size', '12px')
       .style('pointer-events', 'none')
       .style('z-index', '1000')
-      .style('box-shadow', '0 2px 8px rgba(0,0,0,0.2)')
+      .style('box-shadow', isDarkMode ? '0 2px 8px rgba(0,0,0,0.4)' : '0 2px 8px rgba(0,0,0,0.2)')
     
     // Title
     svg.append('text')
@@ -163,7 +166,7 @@ export default function VarianceDialog({
       .attr('text-anchor', 'middle')
       .attr('font-size', '18px')
       .attr('font-weight', 'bold')
-      .attr('fill', '#2c3e50')
+      .attr('fill', isDarkMode ? '#e0e0e0' : '#2c3e50')
       .text(t('topicModeling.lsa.optimizeTitle', 'Topic Number Optimization'))
     
     // Subtitle
@@ -172,7 +175,7 @@ export default function VarianceDialog({
       .attr('y', 48)
       .attr('text-anchor', 'middle')
       .attr('font-size', '12px')
-      .attr('fill', '#666')
+      .attr('fill', isDarkMode ? '#999' : '#666')
       .text(t('topicModeling.lsa.varianceCurve', 'Explained Variance Ratio'))
     
     const g = svg
@@ -202,7 +205,7 @@ export default function VarianceDialog({
       .attr('x2', innerWidth)
       .attr('y1', d => yScale(d))
       .attr('y2', d => yScale(d))
-      .attr('stroke', '#e0e0e0')
+      .attr('stroke', isDarkMode ? '#444' : '#e0e0e0')
       .attr('stroke-dasharray', '3,3')
     
     // Draw cumulative variance line
@@ -227,7 +230,7 @@ export default function VarianceDialog({
       .attr('cy', d => yScale(d.cumulative_variance))
       .attr('r', 6)
       .attr('fill', colors[0])
-      .attr('stroke', 'white')
+      .attr('stroke', isDarkMode ? '#1e1e2e' : 'white')
       .attr('stroke-width', 2)
       .attr('cursor', 'pointer')
       .on('mouseover', function(event, d) {
@@ -296,7 +299,7 @@ export default function VarianceDialog({
       .attr('y', height - 10)
       .attr('text-anchor', 'middle')
       .attr('font-size', '12px')
-      .attr('fill', '#666')
+      .attr('fill', isDarkMode ? '#999' : '#666')
       .text(t('topicModeling.lsa.params.numTopics', 'Number of Topics'))
     
     // Legend
@@ -327,7 +330,7 @@ export default function VarianceDialog({
           .attr('cy', 0)
           .attr('r', 5)
           .attr('fill', item.color)
-          .attr('stroke', 'white')
+          .attr('stroke', isDarkMode ? '#1e1e2e' : 'white')
           .attr('stroke-width', 1.5)
       }
       
@@ -335,11 +338,11 @@ export default function VarianceDialog({
         .attr('x', 30)
         .attr('y', 4)
         .attr('font-size', '11px')
-        .attr('fill', '#444')
+        .attr('fill', isDarkMode ? '#ccc' : '#444')
         .text(item.label)
     })
     
-  }, [open, optimizeResult, colorScheme, t])
+  }, [open, optimizeResult, colorScheme, t, isDarkMode])
   
   // Export SVG
   const handleExportSVG = useCallback(() => {
@@ -460,7 +463,7 @@ export default function VarianceDialog({
         </Box>
       )}
       
-      <DialogContent dividers sx={{ p: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <DialogContent dividers sx={{ p: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', bgcolor: isDarkMode ? '#1e1e2e' : 'background.paper' }}>
         {optimizing ? (
           <Box sx={{ 
             display: 'flex', 
@@ -485,12 +488,12 @@ export default function VarianceDialog({
             sx={{
               width: '100%',
               height: '100%',
-              bgcolor: '#fafafa',
+              bgcolor: isDarkMode ? '#1e1e2e' : '#fafafa',
               position: 'relative',
               minHeight: 500
             }}
           >
-            <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
+            <svg ref={svgRef} style={{ width: '100%', height: '100%', background: isDarkMode ? 'transparent' : '#fafafa' }} />
             <div ref={tooltipRef} />
           </Box>
         ) : (

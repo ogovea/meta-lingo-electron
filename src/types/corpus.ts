@@ -162,6 +162,48 @@ export interface TranscriptData {
   segments: TranscriptSegment[]
   words?: TranscriptWord[]
   wordLevelTimestamps: boolean
+  // English audio features
+  alignment?: AlignmentData
+  pitch?: PitchData
+}
+
+// ==================== Alignment Models (Wav2Vec2) ====================
+
+export interface WordAlignment {
+  word: string
+  start: number
+  end: number
+  score: number
+}
+
+export interface CharAlignment {
+  char: string
+  start: number
+  end: number
+  score: number
+}
+
+export interface AlignmentData {
+  enabled: boolean
+  word_alignments?: WordAlignment[]
+  char_alignments?: CharAlignment[]
+  error?: string
+  reason?: string
+}
+
+// ==================== Pitch Models (TorchCrepe) ====================
+
+export interface PitchData {
+  enabled: boolean
+  hop_length_ms?: number
+  sample_rate?: number
+  fmin?: number
+  fmax?: number
+  f0?: number[]
+  periodicity?: number[]
+  times?: number[]
+  error?: string
+  reason?: string
 }
 
 // ==================== YOLO Models ====================

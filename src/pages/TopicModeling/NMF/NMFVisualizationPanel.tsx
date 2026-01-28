@@ -19,7 +19,8 @@ import {
   IconButton,
   Divider,
   FormControlLabel,
-  Checkbox
+  Checkbox,
+  useTheme
 } from '@mui/material'
 import { NumberInput } from '../../../components/common'
 import SaveAltIcon from '@mui/icons-material/SaveAlt'
@@ -40,6 +41,8 @@ type VizType = 'topicWords' | 'topicPie' | 'docDist'
 
 export default function NMFVisualizationPanel({ result }: NMFVisualizationPanelProps) {
   const { t, i18n } = useTranslation()
+  const theme = useTheme()
+  const isDarkMode = theme.palette.mode === 'dark'
   const [vizType, setVizType] = useState<VizType>('topicWords')
   const [colorScheme, setColorScheme] = useState<ColorSchemeName>(DEFAULT_COLOR_SCHEME)
   const [nWords, setNWords] = useState(5)
@@ -319,6 +322,8 @@ function TopicPieChart({
   useCustomLabels?: boolean
 }) {
   const { t } = useTranslation()
+  const theme = useTheme()
+  const isDarkMode = theme.palette.mode === 'dark'
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const dimensions = useResizeObserver(containerRef)
@@ -349,7 +354,7 @@ function TopicPieChart({
       .attr('text-anchor', 'middle')
       .attr('font-size', '18px')
       .attr('font-weight', 'bold')
-      .attr('fill', '#2c3e50')
+      .attr('fill', isDarkMode ? '#e0e0e0' : '#2c3e50')
       .text(t('topicModeling.nmf.viz.topicPie', 'Topic Distribution'))
     
     // Subtitle
@@ -358,7 +363,7 @@ function TopicPieChart({
       .attr('y', 48)
       .attr('text-anchor', 'middle')
       .attr('font-size', '12px')
-      .attr('fill', '#666')
+      .attr('fill', isDarkMode ? '#999' : '#666')
       .text(t('topicModeling.lda.viz.topicDistributionSubtitle', 'Documents per Topic (Dominant Topic)'))
     
     // Count documents per topic
@@ -401,7 +406,7 @@ function TopicPieChart({
     
     const paths = arcs.append('path')
       .attr('fill', (_, i) => colors[i % colors.length])
-      .attr('stroke', 'white')
+      .attr('stroke', isDarkMode ? '#1e1e2e' : 'white')
       .attr('stroke-width', 2)
       .attr('cursor', 'pointer')
       .attr('opacity', 0)
@@ -429,13 +434,13 @@ function TopicPieChart({
             <span style="display:inline-block;width:10px;height:10px;background:${color};border-radius:2px;margin-right:8px;"></span>
             <span style="font-weight:bold;color:${color}">${d.data.label}</span>
           </div>
-          <div style="color:#555;">
+          <div style="color:${isDarkMode ? '#aaa' : '#555'};">
             <span style="font-weight:500;">${t('topicModeling.lda.viz.documents', 'Documents')}:</span> 
-            <span style="font-weight:bold;color:#333">${d.data.count}</span>
+            <span style="font-weight:bold;color:${isDarkMode ? '#e0e0e0' : '#333'}">${d.data.count}</span>
           </div>
-          <div style="color:#555;">
+          <div style="color:${isDarkMode ? '#aaa' : '#555'};">
             <span style="font-weight:500;">${t('topicModeling.lda.viz.keywords', 'Keywords')}:</span> 
-            <span style="color:#333">${d.data.keywords}</span>
+            <span style="color:${isDarkMode ? '#e0e0e0' : '#333'}">${d.data.keywords}</span>
           </div>
         `, event as unknown as MouseEvent)
       })
@@ -470,14 +475,14 @@ function TopicPieChart({
       .attr('text-anchor', 'middle')
       .attr('font-size', '22px')
       .attr('font-weight', 'bold')
-      .attr('fill', '#2c3e50')
+      .attr('fill', isDarkMode ? '#e0e0e0' : '#2c3e50')
       .text(`${docTopics.length}`)
     
     g.append('text')
       .attr('text-anchor', 'middle')
       .attr('y', 22)
       .attr('font-size', '12px')
-      .attr('fill', '#666')
+      .attr('fill', isDarkMode ? '#999' : '#666')
       .text('documents')
     
     // Legend with interactivity
@@ -531,11 +536,11 @@ function TopicPieChart({
         .attr('x', 20)
         .attr('y', 11)
         .attr('font-size', '11px')
-        .attr('fill', '#444')
+        .attr('fill', isDarkMode ? '#ccc' : '#444')
         .text(`${d.label}: ${d.count}`)
     })
     
-  }, [dimensions, topics, docTopics, colorScheme, tooltip, t, useCustomLabels])
+  }, [dimensions, topics, docTopics, colorScheme, tooltip, t, useCustomLabels, isDarkMode])
   
   useEffect(() => {
     if (dimensions) {
@@ -585,6 +590,8 @@ function DocDistributionChart({
   useCustomLabels?: boolean
 }) {
   const { t } = useTranslation()
+  const theme = useTheme()
+  const isDarkMode = theme.palette.mode === 'dark'
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const dimensions = useResizeObserver(containerRef)
@@ -614,7 +621,7 @@ function DocDistributionChart({
       .attr('text-anchor', 'middle')
       .attr('font-size', '18px')
       .attr('font-weight', 'bold')
-      .attr('fill', '#2c3e50')
+      .attr('fill', isDarkMode ? '#e0e0e0' : '#2c3e50')
       .text(t('topicModeling.nmf.viz.docDist', 'Document Distribution'))
     
     // Subtitle
@@ -623,7 +630,7 @@ function DocDistributionChart({
       .attr('y', 48)
       .attr('text-anchor', 'middle')
       .attr('font-size', '12px')
-      .attr('fill', '#666')
+      .attr('fill', isDarkMode ? '#999' : '#666')
       .text(t('topicModeling.lda.viz.docDistributionSubtitle', 'Topic Weight Distribution Across Documents'))
     
     // Sample if too many documents
@@ -749,7 +756,7 @@ function DocDistributionChart({
       .attr('y', height - 10)
       .attr('text-anchor', 'middle')
       .attr('font-size', '12px')
-      .attr('fill', '#666')
+      .attr('fill', isDarkMode ? '#999' : '#666')
       .text(t('topicModeling.lda.viz.documentIndex', 'Document Index'))
     
     // Y axis label
@@ -759,7 +766,7 @@ function DocDistributionChart({
       .attr('y', 20)
       .attr('text-anchor', 'middle')
       .attr('font-size', '12px')
-      .attr('fill', '#666')
+      .attr('fill', isDarkMode ? '#999' : '#666')
       .text(t('topicModeling.lda.viz.topicWeightPercent', 'Topic Weight (%)'))
     
     // Legend items with interactivity
@@ -814,11 +821,11 @@ function DocDistributionChart({
         .attr('x', 18)
         .attr('y', 10)
         .attr('font-size', '11px')
-        .attr('fill', '#444')
+        .attr('fill', isDarkMode ? '#ccc' : '#444')
         .text(getLabel(i))
     })
     
-  }, [dimensions, docTopics, numTopics, colorScheme, tooltip, t, topics, useCustomLabels])
+  }, [dimensions, docTopics, numTopics, colorScheme, tooltip, t, topics, useCustomLabels, isDarkMode])
   
   useEffect(() => {
     if (dimensions) {

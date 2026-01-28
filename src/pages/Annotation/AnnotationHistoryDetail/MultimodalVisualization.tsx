@@ -24,7 +24,8 @@ import {
   Alert,
   IconButton,
   Tooltip,
-  Divider
+  Divider,
+  useTheme
 } from '@mui/material'
 import WbSunnyIcon from '@mui/icons-material/WbSunny'
 import ShowChartIcon from '@mui/icons-material/ShowChart'
@@ -67,6 +68,24 @@ export default function MultimodalVisualization({
   clipAnnotations 
 }: MultimodalVisualizationProps) {
   const { t } = useTranslation()
+  const theme = useTheme()
+  const isDarkMode = theme.palette.mode === 'dark'
+  
+  // 主题相关颜色
+  const themeColors = {
+    text: isDarkMode ? '#e0e0e0' : '#333',
+    subText: isDarkMode ? '#aaa' : '#666',
+    axisText: isDarkMode ? '#bbb' : '#555',
+    axisLine: isDarkMode ? '#555' : '#ccc',
+    gridLine: isDarkMode ? '#444' : '#e5e5e5',
+    background: isDarkMode ? '#1e1e1e' : '#ffffff',
+    tooltipBg: isDarkMode ? 'rgba(30, 30, 30, 0.98)' : 'rgba(255, 255, 255, 0.98)',
+    border: isDarkMode ? '#444' : '#e0e0e0',
+    legendText: isDarkMode ? '#bbb' : '#444',
+    legendTextMuted: isDarkMode ? '#777' : '#bbb',
+    noDataText: isDarkMode ? '#888' : '#999',
+  }
+  
   const [chartType, setChartType] = useState<ChartType>('scatter')
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -297,7 +316,7 @@ export default function MultimodalVisualization({
         .tickFormat(() => ''))
       .attr('transform', 'translate(0, 0)')
       .selectAll('line')
-      .attr('stroke', '#e5e5e5')
+      .attr('stroke', themeColors.gridLine)
       .attr('stroke-dasharray', '3,3')
     g.selectAll('.grid .domain').remove()
     
@@ -375,7 +394,7 @@ export default function MultimodalVisualization({
           d3.select(this).select('.legend-text')
             .transition()
             .duration(200)
-            .attr('fill', vis ? '#444' : '#bbb')
+            .attr('fill', vis ? themeColors.legendText : themeColors.legendTextMuted)
             .attr('font-weight', vis ? 500 : 400)
         })
       }
@@ -417,7 +436,7 @@ export default function MultimodalVisualization({
           .attr('class', 'legend-text')
           .attr('x', 18)
           .attr('y', 9)
-          .attr('fill', isVisible ? '#444' : '#bbb')
+          .attr('fill', isVisible ? themeColors.legendText : themeColors.legendTextMuted)
           .attr('font-size', 9)
           .attr('font-weight', isVisible ? 500 : 400)
           .text(label.length > maxTextLen ? label.slice(0, maxTextLen) + '..' : label)
@@ -447,7 +466,7 @@ export default function MultimodalVisualization({
           d3.select(this).select('.legend-text')
             .transition()
             .duration(200)
-            .attr('fill', newVisibility ? '#444' : '#bbb')
+            .attr('fill', newVisibility ? themeColors.legendText : themeColors.legendTextMuted)
             .attr('font-weight', newVisibility ? 500 : 400)
         })
         
@@ -493,7 +512,7 @@ export default function MultimodalVisualization({
           d3.select(this).select('.legend-line')
             .attr('stroke-width', 4)
           d3.select(this).select('.legend-text')
-            .attr('fill', '#000')
+            .attr('fill', themeColors.text)
         })
         
         legendItem.on('mouseout', function() {
@@ -512,7 +531,7 @@ export default function MultimodalVisualization({
           d3.select(this).select('.legend-line')
             .attr('stroke-width', 3)
           d3.select(this).select('.legend-text')
-            .attr('fill', isVis ? '#444' : '#bbb')
+            .attr('fill', isVis ? themeColors.legendText : themeColors.legendTextMuted)
         })
       })
     }
@@ -539,7 +558,7 @@ export default function MultimodalVisualization({
         .on('mouseover', function(event) {
           d3.select(this)
             .attr('opacity', 1)
-            .attr('stroke', '#333')
+            .attr('stroke', themeColors.text)
             .attr('stroke-width', 2)
           
           if (tooltipRef.current) {
@@ -575,14 +594,14 @@ export default function MultimodalVisualization({
       .call(d3.axisBottom(xScale).ticks(10).tickFormat(d => `${d}s`))
       .attr('font-size', 11)
       .selectAll('line, path')
-      .attr('stroke', '#999')
+      .attr('stroke', themeColors.axisLine)
     
     // X轴标签
     g.append('text')
       .attr('x', innerWidth / 2)
       .attr('y', innerHeight + 45)
       .attr('text-anchor', 'middle')
-      .attr('fill', '#555')
+      .attr('fill', themeColors.axisText)
       .attr('font-size', 12)
       .text(t('annotation.timeInSeconds', '时间 (秒)'))
     
@@ -591,6 +610,7 @@ export default function MultimodalVisualization({
       .call(d3.axisLeft(yScaleLeft))
       .attr('font-size', 10)
       .selectAll('text')
+      .attr('fill', themeColors.axisText)
       .each(function(d) {
         const text = d3.select(this)
         const label = d as string
@@ -599,7 +619,7 @@ export default function MultimodalVisualization({
         }
       })
     
-    g.selectAll('.domain').attr('stroke', '#999')
+    g.selectAll('.domain').attr('stroke', themeColors.axisLine)
     
     // 左Y轴标签
     g.append('text')
@@ -607,7 +627,7 @@ export default function MultimodalVisualization({
       .attr('x', -innerHeight / 2)
       .attr('y', -55)
       .attr('text-anchor', 'middle')
-      .attr('fill', '#555')
+      .attr('fill', themeColors.axisText)
       .attr('font-size', 12)
       .text(t('annotation.label', '标签'))
     
@@ -655,7 +675,7 @@ export default function MultimodalVisualization({
       legendG.append('text')
         .attr('x', x + 20)
         .attr('y', 11)
-        .attr('fill', '#333')
+        .attr('fill', themeColors.text)
         .attr('font-size', 11)
         .attr('font-weight', 500)
         .text(item.name)
@@ -666,12 +686,13 @@ export default function MultimodalVisualization({
       .attr('x', width / 2)
       .attr('y', 25)
       .attr('text-anchor', 'middle')
-      .attr('fill', '#333')
+      .attr('fill', themeColors.text)
       .attr('font-size', 14)
       .attr('font-weight', 600)
       .text(t('annotation.annotationTimeline', '标注时间线'))
     
-  }, [scatterData, clipData, hasClipData, hasYoloData, hasManualData, t])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scatterData, clipData, hasClipData, hasYoloData, hasManualData, t, isDarkMode])
   
   // 绘制太阳图（只包含 YOLO + 手动标注）- 支持点击展开交互
   const drawSunburstChart = useCallback(() => {
@@ -739,7 +760,7 @@ export default function MultimodalVisualization({
         .attr('transform', `translate(${centerX}, ${centerY})`)
       g.append('text')
         .attr('text-anchor', 'middle')
-        .attr('fill', '#999')
+        .attr('fill', themeColors.noDataText)
         .attr('font-size', 14)
         .text(t('common.noData', '无数据'))
       return
@@ -824,7 +845,7 @@ export default function MultimodalVisualization({
       .attr('class', 'arc')
       .attr('d', arc)
       .attr('fill', d => getNodeColor(d))
-      .attr('stroke', '#fff')
+      .attr('stroke', themeColors.background)
       .attr('stroke-width', 2)
       .attr('fill-opacity', d => arcVisible(d) ? (d.depth === 1 ? 0.9 : 0.85) : 0)
       .style('cursor', 'pointer')
@@ -832,7 +853,7 @@ export default function MultimodalVisualization({
         if (!arcVisible(d)) return
         d3.select(this)
           .attr('fill-opacity', 1)
-          .attr('stroke', '#333')
+          .attr('stroke', themeColors.text)
           .attr('stroke-width', 3)
         
         if (tooltipRef.current) {
@@ -845,7 +866,7 @@ export default function MultimodalVisualization({
             <div style="font-weight:600;margin-bottom:6px;color:${getNodeColor(d)};border-bottom:2px solid ${getNodeColor(d)};padding-bottom:4px">
               ${d.data.name}
             </div>
-            ${groupName && groupName !== t('annotation.totalAnnotations', '总标注') ? `<div style="color:#666;margin-bottom:4px">${groupName}</div>` : ''}
+            ${groupName && groupName !== t('annotation.totalAnnotations', '总标注') ? `<div style="color:${themeColors.subText};margin-bottom:4px">${groupName}</div>` : ''}
             <div>${t('annotation.count', '数量')}: <strong>${d.value}</strong></div>
             <div>${t('annotation.percentage', '占比')}: <strong>${percent}%</strong></div>
             ${hasChildren ? `<div style="margin-top:6px;color:#6366f1;font-size:11px">&#x1F449; ${t('annotation.clickToExpand', '点击展开')}</div>` : ''}
@@ -857,7 +878,7 @@ export default function MultimodalVisualization({
       })
       .on('mouseout', function(event, d) {
         d3.select(this)
-          .attr('stroke', '#fff')
+          .attr('stroke', themeColors.background)
           .attr('stroke-width', 2)
           .attr('fill-opacity', arcVisible(d) ? (d.depth === 1 ? 0.9 : 0.85) : 0)
         
@@ -875,7 +896,7 @@ export default function MultimodalVisualization({
       .attr('transform', labelTransform)
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'middle')
-      .attr('fill', '#333')
+      .attr('fill', themeColors.text)
       .attr('font-size', 9)
       .attr('font-weight', 500)
       .attr('pointer-events', 'none')
@@ -894,8 +915,8 @@ export default function MultimodalVisualization({
       .attr('cx', 0)
       .attr('cy', 0)
       .attr('r', 55)
-      .attr('fill', '#fff')
-      .attr('stroke', '#e5e5e5')
+      .attr('fill', themeColors.background)
+      .attr('stroke', themeColors.gridLine)
       .attr('stroke-width', 2)
       .style('cursor', 'pointer')
       .on('click', () => clicked(null, currentFocus.parent as NodeWithTarget || root as NodeWithTarget))
@@ -909,7 +930,7 @@ export default function MultimodalVisualization({
         }
       })
       .on('mouseout', function() {
-        d3.select(this).attr('stroke', '#e5e5e5').attr('stroke-width', 2)
+        d3.select(this).attr('stroke', themeColors.gridLine).attr('stroke-width', 2)
         if (tooltipRef.current) {
           tooltipRef.current.style.display = 'none'
         }
@@ -920,7 +941,7 @@ export default function MultimodalVisualization({
       .attr('class', 'center-value')
       .attr('text-anchor', 'middle')
       .attr('y', -8)
-      .attr('fill', '#333')
+      .attr('fill', themeColors.text)
       .attr('font-size', 28)
       .attr('font-weight', 700)
       .attr('pointer-events', 'none')
@@ -931,7 +952,7 @@ export default function MultimodalVisualization({
       .attr('class', 'center-label')
       .attr('text-anchor', 'middle')
       .attr('y', 18)
-      .attr('fill', '#888')
+      .attr('fill', themeColors.subText)
       .attr('font-size', 12)
       .attr('pointer-events', 'none')
       .text(t('annotation.totalAnnotations', '总标注'))
@@ -985,7 +1006,7 @@ export default function MultimodalVisualization({
       
       // 更新中心圆样式 - 根节点时显示不可返回
       centerCircle.transition(t as any)
-        .attr('stroke', p === root ? '#e5e5e5' : '#6366f1')
+        .attr('stroke', p === root ? themeColors.gridLine : '#6366f1')
         .attr('stroke-dasharray', p === root ? 'none' : '4,2')
     }
     
@@ -1013,7 +1034,7 @@ export default function MultimodalVisualization({
       legendG.append('text')
         .attr('x', 26)
         .attr('y', y + 13)
-        .attr('fill', '#444')
+        .attr('fill', themeColors.legendText)
         .attr('font-size', 12)
         .attr('font-weight', 500)
         .text(`${group.name} (${group.count})`)
@@ -1024,12 +1045,13 @@ export default function MultimodalVisualization({
       .attr('x', width / 2)
       .attr('y', 28)
       .attr('text-anchor', 'middle')
-      .attr('fill', '#333')
+      .attr('fill', themeColors.text)
       .attr('font-size', 15)
       .attr('font-weight', 600)
       .text(t('annotation.sunburstChart', '标注分布太阳图'))
     
-  }, [yoloStats, manualStats, hasYoloData, hasManualData, t])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [yoloStats, manualStats, hasYoloData, hasManualData, t, isDarkMode])
   
   // 绘制热图（只包含 YOLO + 手动标注）
   const drawHeatmapChart = useCallback(() => {
@@ -1059,10 +1081,11 @@ export default function MultimodalVisualization({
       .attr('transform', `translate(${margin.left}, ${margin.top})`)
     
     // 绘制单元格
+    const emptyCellColor = isDarkMode ? '#2a2a2a' : '#f5f5f5'
     heatmapData.data.forEach(d => {
       const source = heatmapData.labels[d.y].split(':')[0]
       const colorInterpolate = getColorScale(source)
-      const cellColor = d.value > 0 ? colorInterpolate(d.value / maxValue * 0.8 + 0.2) : '#f5f5f5'
+      const cellColor = d.value > 0 ? colorInterpolate(d.value / maxValue * 0.8 + 0.2) : emptyCellColor
       
       g.append('rect')
         .attr('x', d.x * cellWidth)
@@ -1070,12 +1093,12 @@ export default function MultimodalVisualization({
         .attr('width', cellWidth - 1)
         .attr('height', cellHeight - 1)
         .attr('fill', cellColor)
-        .attr('stroke', '#fff')
+        .attr('stroke', themeColors.background)
         .attr('stroke-width', 1)
         .attr('rx', 2)
         .style('cursor', 'pointer')
         .on('mouseover', function(event) {
-          d3.select(this).attr('stroke', '#333').attr('stroke-width', 2)
+          d3.select(this).attr('stroke', themeColors.text).attr('stroke-width', 2)
           if (tooltipRef.current) {
             tooltipRef.current.innerHTML = `
               <div style="font-weight:600;margin-bottom:4px">${heatmapData.labels[d.y]}</div>
@@ -1087,7 +1110,7 @@ export default function MultimodalVisualization({
           }
         })
         .on('mouseout', function() {
-          d3.select(this).attr('stroke', '#fff').attr('stroke-width', 1)
+          d3.select(this).attr('stroke', themeColors.background).attr('stroke-width', 1)
           if (tooltipRef.current) {
             tooltipRef.current.style.display = 'none'
           }
@@ -1100,7 +1123,7 @@ export default function MultimodalVisualization({
           .attr('y', d.y * cellHeight + cellHeight / 2)
           .attr('text-anchor', 'middle')
           .attr('dominant-baseline', 'middle')
-          .attr('fill', d.value > maxValue * 0.5 ? '#fff' : '#333')
+          .attr('fill', d.value > maxValue * 0.5 ? '#fff' : themeColors.text)
           .attr('font-size', 10)
           .attr('font-weight', 500)
           .text(d.value)
@@ -1116,7 +1139,7 @@ export default function MultimodalVisualization({
       .attr('y', height - margin.top - margin.bottom + 15)
       .attr('text-anchor', 'end')
       .attr('transform', (_, i) => `rotate(-45, ${i * cellWidth + cellWidth / 2}, ${height - margin.top - margin.bottom + 15})`)
-      .attr('fill', '#555')
+      .attr('fill', themeColors.axisText)
       .attr('font-size', 10)
       .text(d => d)
     
@@ -1155,7 +1178,7 @@ export default function MultimodalVisualization({
       legendG.append('text')
         .attr('x', 0)
         .attr('y', y)
-        .attr('fill', '#333')
+        .attr('fill', themeColors.text)
         .attr('font-size', 11)
         .attr('font-weight', 600)
         .text(item.name)
@@ -1177,10 +1200,10 @@ export default function MultimodalVisualization({
         .attr('width', 15)
         .attr('height', 50)
         .attr('fill', `url(#${gradientId})`)
-        .attr('stroke', '#ddd')
+        .attr('stroke', themeColors.axisLine)
       
-      legendG.append('text').attr('x', 20).attr('y', y + 20).attr('fill', '#666').attr('font-size', 9).text(maxValue)
-      legendG.append('text').attr('x', 20).attr('y', y + 65).attr('fill', '#666').attr('font-size', 9).text('0')
+      legendG.append('text').attr('x', 20).attr('y', y + 20).attr('fill', themeColors.subText).attr('font-size', 9).text(maxValue)
+      legendG.append('text').attr('x', 20).attr('y', y + 65).attr('fill', themeColors.subText).attr('font-size', 9).text('0')
     })
     
     // 标题
@@ -1188,12 +1211,13 @@ export default function MultimodalVisualization({
       .attr('x', width / 2)
       .attr('y', 25)
       .attr('text-anchor', 'middle')
-      .attr('fill', '#333')
+      .attr('fill', themeColors.text)
       .attr('font-size', 14)
       .attr('font-weight', 600)
       .text(t('annotation.heatmap', '热图'))
     
-  }, [heatmapData, t])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [heatmapData, t, isDarkMode])
   
   // 根据图表类型绘制
   useEffect(() => {
@@ -1390,16 +1414,17 @@ export default function MultimodalVisualization({
           position: 'fixed',
           display: 'none',
           padding: '12px 16px',
-          background: 'rgba(255, 255, 255, 0.98)',
-          border: '1px solid #e0e0e0',
+          background: themeColors.tooltipBg,
+          border: `1px solid ${themeColors.border}`,
           borderRadius: '10px',
-          boxShadow: '0 6px 24px rgba(0,0,0,0.15)',
+          boxShadow: isDarkMode ? '0 6px 24px rgba(0,0,0,0.4)' : '0 6px 24px rgba(0,0,0,0.15)',
           fontSize: '13px',
           lineHeight: 1.6,
           pointerEvents: 'none',
           zIndex: 10000,
           maxWidth: '320px',
-          backdropFilter: 'blur(8px)'
+          backdropFilter: 'blur(8px)',
+          color: themeColors.text
         }}
       />
       

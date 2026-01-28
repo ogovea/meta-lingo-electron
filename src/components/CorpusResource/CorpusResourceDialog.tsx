@@ -26,7 +26,8 @@ import {
   Select,
   MenuItem,
   Collapse,
-  Paper
+  Paper,
+  useTheme
 } from '@mui/material'
 import {
   Search as SearchIcon,
@@ -65,6 +66,7 @@ export const CorpusResourceDialog: React.FC<CorpusResourceDialogProps> = ({
   title
 }) => {
   const { t, i18n } = useTranslation()
+  const theme = useTheme()
   const isZh = i18n.language === 'zh'
 
   // State
@@ -227,7 +229,7 @@ export const CorpusResourceDialog: React.FC<CorpusResourceDialogProps> = ({
         </Box>
       </DialogTitle>
 
-      <Box sx={{ p: 2, bgcolor: 'grey.50' }}>
+      <Box sx={{ p: 2, bgcolor: theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50' }}>
         {/* Search */}
         <TextField
           fullWidth

@@ -16,7 +16,8 @@ import {
   Paper,
   IconButton,
   Tooltip,
-  Divider
+  Divider,
+  useTheme
 } from '@mui/material'
 import SaveAltIcon from '@mui/icons-material/SaveAlt'
 import ImageIcon from '@mui/icons-material/Image'
@@ -49,6 +50,8 @@ interface Link {
 
 export default function SketchVisualization({ result, selectedRelation, onRelationChange }: Props) {
   const { t } = useTranslation()
+  const theme = useTheme()
+  const isDarkMode = theme.palette.mode === 'dark'
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [maxWords, setMaxWords] = useState(10)
@@ -327,8 +330,8 @@ export default function SketchVisualization({ result, selectedRelation, onRelati
 
     // Draw links
     const link = g.append('g')
-      .attr('stroke', '#999')
-      .attr('stroke-opacity', 0.4)
+      .attr('stroke', isDarkMode ? '#666' : '#999')
+      .attr('stroke-opacity', isDarkMode ? 0.6 : 0.4)
       .selectAll('line')
       .data(graphData.links)
       .join('line')
@@ -363,7 +366,7 @@ export default function SketchVisualization({ result, selectedRelation, onRelati
         return sizeScale(d.frequency || 1)
       })
       .attr('fill', (d: Node) => colorScale(d.type))
-      .attr('stroke', '#fff')
+      .attr('stroke', isDarkMode ? '#1e1e2e' : '#fff')
       .attr('stroke-width', 2)
 
     // Add labels
@@ -375,7 +378,7 @@ export default function SketchVisualization({ result, selectedRelation, onRelati
         return '10px'
       })
       .attr('font-weight', (d: Node) => d.type === 'center' ? 'bold' : 'normal')
-      .attr('fill', '#333')
+      .attr('fill', isDarkMode ? '#e0e0e0' : '#333')
       .attr('text-anchor', 'middle')
       .attr('dy', (d: Node) => {
         if (d.type === 'center') return 35
@@ -407,7 +410,7 @@ export default function SketchVisualization({ result, selectedRelation, onRelati
     return () => {
       simulation.stop()
     }
-  }, [graphData])
+  }, [graphData, isDarkMode])
 
   // Render empty state
   const renderEmptyState = () => (

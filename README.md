@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v3.8.95-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-v3.8.97-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey.svg" alt="Platform">
   <img src="https://img.shields.io/badge/license-Non--Commercial-green.svg" alt="License">
 </p>
@@ -45,6 +45,8 @@
 ### Corpus Management
 - **Multimodal Support**: Text, audio, and video files with drag-and-drop upload
 - **Audio Transcription**: Whisper Large V3 Turbo with word-level timestamps
+- **Forced Alignment**: Wav2Vec2 word-level alignment for English audio (automatic)
+- **Pitch Extraction**: TorchCrepe F0 extraction for English audio (automatic)
 - **Video Analysis**: YOLOv8 object detection and CLIP semantic classification
 - **Automatic Annotation**: SpaCy NLP (POS/NER/Dependency), USAS semantic domains, MIPVU metaphor identification
 - **Metadata Management**: Language, author, source, text type with tag system
@@ -67,8 +69,9 @@
 ### Annotation Mode
 - **Text Annotation**: Sentence-level display, intelligent segmentation, batch annotation
 - **Multimodal Annotation**: Video frame tracking, DAW-style timeline, YOLO overlay
+- **Audio Waveform Annotation**: Wavesurfer.js waveform visualization with word alignment, pitch curve overlay, box drawing annotation (English audio only)
 - **Framework Management**: 49 preset frameworks (SFL, UAM, etc.), custom framework support
-- **Inter-coder Reliability**: Fleiss' Kappa, Cohen's Kappa, Krippendorff's Alpha, Gold Standard support
+- **Inter-coder Reliability**: Fleiss' Kappa, Cohen's Kappa, Krippendorff's Alpha, Gold Standard support (plain text archives only)
 - **Syntax Visualization**: Constituency and dependency parsing
 
 ### Additional Features
@@ -241,6 +244,8 @@ Meta-Lingo integrates several pre-trained models:
 | Model | Purpose | Source |
 |-------|---------|--------|
 | Whisper Large V3 Turbo | Audio transcription | OpenAI |
+| Wav2Vec2-base-960h | Forced alignment (English) | Facebook |
+| TorchCrepe Full | Pitch extraction (F0) | [maxrmorrison/torchcrepe](https://github.com/maxrmorrison/torchcrepe) |
 | YOLOv8 | Object detection | Ultralytics |
 | CLIP ViT-Large-Patch14 | Image classification | OpenAI |
 | SpaCy en/zh_core_web_lg | NLP processing | Explosion |
@@ -253,6 +258,23 @@ Meta-Lingo integrates several pre-trained models:
 This project is currently maintained for academic research purposes. For bug reports or feature requests, please open an issue.
 
 ## Changelog
+
+### v3.8.97 (2026-01-29)
+- **Dark Theme Enhancement**: Comprehensive dark theme support for all Topic Modeling visualizations
+  - LDA/LSA/NMF: Topic distribution, document distribution, similarity heatmap charts
+  - BERTopic: Term rank plot, hierarchy plot, intertopic distance, similarity heatmap
+  - D3.js components: Topic word bars, similarity heatmap with proper title/axis/legend colors
+  - Plotly.js components: Force override for backend-generated chart colors
+- **Topic Card Keywords**: Proper dark theme colors for bold keywords in all topic modeling methods
+
+### v3.8.96 (2026-01-28)
+- **Audio Waveform Annotation**: Wavesurfer.js waveform with word-level alignment overlay
+- **Pitch Curve Display**: TorchCrepe F0 visualization on waveform
+- **Audio Box Drawing**: Draw annotation boxes on waveform canvas (similar to video annotation)
+- **Audio History Visualization**: SVG export with waveform, pitch, and annotation boxes
+- **Dark Mode**: Full dark mode support for all visualizations and table headers
+- **Inter-coder Reliability**: Restricted to plain text archives only, validation for uploaded JSON files
+- **Chinese Audio Restriction**: Chinese audio only available in plain text annotation mode (no waveform)
 
 ### v3.8.95 (2026-01-28)
 - Syntax visualization support for audio/video transcripts

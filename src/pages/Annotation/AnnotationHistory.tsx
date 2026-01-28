@@ -38,7 +38,8 @@ import {
   DialogActions,
   Tooltip,
   Divider,
-  Checkbox
+  Checkbox,
+  useTheme
 } from '@mui/material'
 import HistoryIcon from '@mui/icons-material/History'
 import SearchIcon from '@mui/icons-material/Search'
@@ -46,6 +47,7 @@ import DeleteIcon from '@mui/icons-material/Delete'
 import DownloadIcon from '@mui/icons-material/Download'
 import DescriptionIcon from '@mui/icons-material/Description'
 import VideoFileIcon from '@mui/icons-material/VideoFile'
+import AudioFileIcon from '@mui/icons-material/AudioFile'
 import FolderIcon from '@mui/icons-material/Folder'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import { useTranslation } from 'react-i18next'
@@ -77,7 +79,17 @@ interface CorpusBasic {
 
 export default function AnnotationHistory() {
   const { t } = useTranslation()
+  const theme = useTheme()
+  const isDarkMode = theme.palette.mode === 'dark'
   const { corpora: storeCorpora, setCorpora } = useCorpusStore()
+  
+  // 主题适配的标签颜色
+  const chipColors = {
+    transcript: { bgcolor: isDarkMode ? '#064e3b' : '#f0fdf4', color: isDarkMode ? '#6ee7b7' : '#16a34a' },
+    clip: { bgcolor: isDarkMode ? '#4c1d95' : '#f5f3ff', color: isDarkMode ? '#c4b5fd' : '#8b5cf6' },
+    yolo: { bgcolor: isDarkMode ? '#1e3a8a' : '#eff6ff', color: isDarkMode ? '#93c5fd' : '#3b82f6' },
+    manual: { bgcolor: isDarkMode ? '#7f1d1d' : '#fef2f2', color: isDarkMode ? '#fca5a5' : '#ef4444' },
+  }
   
   // 状态
   const [loading, setLoading] = useState(false)
@@ -500,9 +512,15 @@ export default function AnnotationHistory() {
         <Grid container spacing={2}>
           {filteredArchives.map(archive => {
             const isMultimodal = archive.type === 'multimodal'
+            const isAudio = isMultimodal && archive.mediaType === 'audio'
+            const isVideo = isMultimodal && archive.mediaType !== 'audio'
             const totalCount = isMultimodal 
               ? archive.annotationCount + (archive.clipFrameCount || 0) + (archive.yoloCount || 0) + (archive.manualCount || 0)
               : archive.annotationCount
+            
+            // Color scheme: text=blue, video=purple, audio=orange
+            const cardColor = isAudio ? '#f97316' : (isVideo ? 'secondary.main' : 'primary.main')
+            const hoverColor = isAudio ? '#ea580c' : (isVideo ? 'secondary.main' : 'primary.main')
             
             return (
             <Grid item xs={12} sm={6} md={4} lg={3} key={archive.id}>
@@ -513,14 +531,14 @@ export default function AnnotationHistory() {
                   display: 'flex',
                   flexDirection: 'column',
                   borderColor: selectedIds.includes(archive.id) 
-                    ? 'primary.main' 
+                    ? cardColor 
                     : 'divider',
                   borderWidth: selectedIds.includes(archive.id) ? 2 : 1,
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
                   '&:hover': {
                     boxShadow: 3,
-                    borderColor: isMultimodal ? 'secondary.main' : 'primary.main'
+                    borderColor: hoverColor
                   }
                 }}
                 onClick={() => handleCardClick(archive)}
@@ -528,7 +546,7 @@ export default function AnnotationHistory() {
                 {/* 顶部类型标识条 */}
                 <Box sx={{ 
                   height: 4, 
-                  bgcolor: isMultimodal ? 'secondary.main' : 'primary.main',
+                  bgcolor: cardColor,
                   borderRadius: '4px 4px 0 0'
                 }} />
                 
@@ -567,12 +585,17 @@ export default function AnnotationHistory() {
                   {/* 元信息 */}
                   <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5, mb: 1 }}>
                     <Chip 
-                      icon={isMultimodal ? <VideoFileIcon sx={{ fontSize: 14 }} /> : <DescriptionIcon sx={{ fontSize: 14 }} />}
-                      label={isMultimodal ? t('annotation.multimodalAnnotation', '多模态') : t('annotation.textAnnotation', '文本')}
+                      icon={isAudio ? <AudioFileIcon sx={{ fontSize: 14 }} /> : (isVideo ? <VideoFileIcon sx={{ fontSize: 14 }} /> : <DescriptionIcon sx={{ fontSize: 14 }} />)}
+                      label={isAudio ? t('annotation.audioAnnotation', '音频') : (isVideo ? t('annotation.videoAnnotation', '视频') : t('annotation.textAnnotation', '文本'))}
                       size="small"
-                      color={isMultimodal ? 'secondary' : 'primary'}
                       variant="outlined"
-                      sx={{ height: 22, fontSize: '11px' }}
+                      sx={{ 
+                        height: 22, 
+                        fontSize: '11px',
+                        borderColor: cardColor,
+                        color: cardColor,
+                        '& .MuiChip-icon': { color: cardColor }
+                      }}
                     />
                     <Typography variant="caption" color="text.secondary" noWrap sx={{ flex: 1 }}>
                       {archive.corpus}
@@ -613,8 +636,8 @@ export default function AnnotationHistory() {
                             sx={{ 
                               height: 20, 
                               fontSize: '10px',
-                              bgcolor: '#f0fdf4',
-                              color: '#16a34a',
+                              bgcolor: chipColors.transcript.bgcolor,
+                              color: chipColors.transcript.color,
                               '& .MuiChip-label': { px: 1 }
                             }}
                           />
@@ -626,8 +649,8 @@ export default function AnnotationHistory() {
                             sx={{ 
                               height: 20, 
                               fontSize: '10px',
-                              bgcolor: '#f5f3ff',
-                              color: '#8b5cf6',
+                              bgcolor: chipColors.clip.bgcolor,
+                              color: chipColors.clip.color,
                               '& .MuiChip-label': { px: 1 }
                             }}
                           />
@@ -639,8 +662,8 @@ export default function AnnotationHistory() {
                             sx={{ 
                               height: 20, 
                               fontSize: '10px',
-                              bgcolor: '#eff6ff',
-                              color: '#3b82f6',
+                              bgcolor: chipColors.yolo.bgcolor,
+                              color: chipColors.yolo.color,
                               '& .MuiChip-label': { px: 1 }
                             }}
                           />
@@ -652,8 +675,8 @@ export default function AnnotationHistory() {
                             sx={{ 
                               height: 20, 
                               fontSize: '10px',
-                              bgcolor: '#fef2f2',
-                              color: '#ef4444',
+                              bgcolor: chipColors.manual.bgcolor,
+                              color: chipColors.manual.color,
                               '& .MuiChip-label': { px: 1 }
                             }}
                           />

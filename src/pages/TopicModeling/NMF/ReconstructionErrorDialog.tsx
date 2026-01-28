@@ -21,7 +21,8 @@ import {
   Tooltip,
   Chip,
   CircularProgress,
-  Alert
+  Alert,
+  useTheme
 } from '@mui/material'
 import { NumberInput } from '../../../components/common'
 import CloseIcon from '@mui/icons-material/Close'
@@ -70,6 +71,8 @@ export default function ReconstructionErrorDialog({
   error
 }: ReconstructionErrorDialogProps) {
   const { t } = useTranslation()
+  const theme = useTheme()
+  const isDarkMode = theme.palette.mode === 'dark'
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
@@ -94,14 +97,14 @@ export default function ReconstructionErrorDialog({
     const tooltip = d3.select(tooltipRef.current)
       .style('position', 'fixed')
       .style('visibility', 'hidden')
-      .style('background', 'rgba(0,0,0,0.85)')
-      .style('color', 'white')
+      .style('background', isDarkMode ? 'rgba(50,50,50,0.95)' : 'rgba(0,0,0,0.85)')
+      .style('color', isDarkMode ? '#e0e0e0' : 'white')
       .style('padding', '10px 14px')
       .style('border-radius', '6px')
       .style('font-size', '12px')
       .style('pointer-events', 'none')
       .style('z-index', '1000')
-      .style('box-shadow', '0 2px 8px rgba(0,0,0,0.2)')
+      .style('box-shadow', isDarkMode ? '0 2px 8px rgba(0,0,0,0.4)' : '0 2px 8px rgba(0,0,0,0.2)')
     
     // Title
     svg.append('text')
@@ -110,7 +113,7 @@ export default function ReconstructionErrorDialog({
       .attr('text-anchor', 'middle')
       .attr('font-size', '18px')
       .attr('font-weight', 'bold')
-      .attr('fill', '#2c3e50')
+      .attr('fill', isDarkMode ? '#e0e0e0' : '#2c3e50')
       .text(t('topicModeling.nmf.optimizeTitle', 'Topic Number Optimization'))
     
     // Subtitle
@@ -119,7 +122,7 @@ export default function ReconstructionErrorDialog({
       .attr('y', 48)
       .attr('text-anchor', 'middle')
       .attr('font-size', '12px')
-      .attr('fill', '#666')
+      .attr('fill', isDarkMode ? '#999' : '#666')
       .text(t('topicModeling.nmf.reconstructionErrorCurve', 'Reconstruction Error Curve'))
     
     const g = svg
@@ -152,7 +155,7 @@ export default function ReconstructionErrorDialog({
       .attr('x2', innerWidth)
       .attr('y1', d => yScale(d))
       .attr('y2', d => yScale(d))
-      .attr('stroke', '#e0e0e0')
+      .attr('stroke', isDarkMode ? '#444' : '#e0e0e0')
       .attr('stroke-dasharray', '3,3')
     
     // Draw line
@@ -177,7 +180,7 @@ export default function ReconstructionErrorDialog({
       .attr('cy', d => yScale(d.reconstruction_error))
       .attr('r', d => d.num_topics === optimizeResult.best_topic_count ? 10 : 6)
       .attr('fill', d => d.num_topics === optimizeResult.best_topic_count ? colors[1] : colors[0])
-      .attr('stroke', 'white')
+      .attr('stroke', isDarkMode ? '#1e1e2e' : 'white')
       .attr('stroke-width', 2)
       .attr('cursor', 'pointer')
       .on('mouseover', function(event, d) {
@@ -258,7 +261,7 @@ export default function ReconstructionErrorDialog({
       .attr('y', height - 10)
       .attr('text-anchor', 'middle')
       .attr('font-size', '12px')
-      .attr('fill', '#666')
+      .attr('fill', isDarkMode ? '#999' : '#666')
       .text(t('topicModeling.nmf.numTopicsLabel', 'Number of Topics'))
     
     // Y axis label
@@ -268,7 +271,7 @@ export default function ReconstructionErrorDialog({
       .attr('y', 20)
       .attr('text-anchor', 'middle')
       .attr('font-size', '12px')
-      .attr('fill', '#666')
+      .attr('fill', isDarkMode ? '#999' : '#666')
       .text(t('topicModeling.nmf.reconstructionError', 'Reconstruction Error'))
     
     // Legend
@@ -289,14 +292,14 @@ export default function ReconstructionErrorDialog({
       .attr('cy', 0)
       .attr('r', 5)
       .attr('fill', colors[0])
-      .attr('stroke', 'white')
+      .attr('stroke', isDarkMode ? '#1e1e2e' : 'white')
       .attr('stroke-width', 1.5)
     
     legend.append('text')
       .attr('x', 30)
       .attr('y', 4)
       .attr('font-size', '11px')
-      .attr('fill', '#444')
+      .attr('fill', isDarkMode ? '#ccc' : '#444')
       .text(`${t('topicModeling.nmf.reconstructionError', 'Reconstruction Error')} (${t('topicModeling.nmf.lowerBetter', 'lower is better')})`)
     
     // Optimal point legend
@@ -311,10 +314,10 @@ export default function ReconstructionErrorDialog({
       .attr('x', 278)
       .attr('y', 4)
       .attr('font-size', '11px')
-      .attr('fill', '#444')
+      .attr('fill', isDarkMode ? '#ccc' : '#444')
       .text(t('topicModeling.nmf.optimalPoint', 'Optimal Point'))
     
-  }, [open, optimizeResult, colorScheme, t])
+  }, [open, optimizeResult, colorScheme, t, isDarkMode])
   
   // Export SVG
   const handleExportSVG = useCallback(() => {
@@ -438,7 +441,7 @@ export default function ReconstructionErrorDialog({
         </Box>
       )}
       
-      <DialogContent dividers sx={{ p: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <DialogContent dividers sx={{ p: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', bgcolor: isDarkMode ? '#1e1e2e' : 'background.paper' }}>
         {optimizing ? (
           <Box sx={{ 
             display: 'flex', 
@@ -463,12 +466,12 @@ export default function ReconstructionErrorDialog({
             sx={{
               width: '100%',
               height: '100%',
-              bgcolor: '#fafafa',
+              bgcolor: isDarkMode ? '#1e1e2e' : '#fafafa',
               position: 'relative',
               minHeight: 500
             }}
           >
-            <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
+            <svg ref={svgRef} style={{ width: '100%', height: '100%', background: isDarkMode ? 'transparent' : '#fafafa' }} />
             <div ref={tooltipRef} />
           </Box>
         ) : (

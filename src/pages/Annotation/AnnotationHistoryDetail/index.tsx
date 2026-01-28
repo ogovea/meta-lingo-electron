@@ -25,21 +25,25 @@ import {
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import DescriptionIcon from '@mui/icons-material/Description'
 import VideoFileIcon from '@mui/icons-material/VideoFile'
+import AudioFileIcon from '@mui/icons-material/AudioFile'
 import TableChartIcon from '@mui/icons-material/TableChart'
 import BarChartIcon from '@mui/icons-material/BarChart'
 import { useTranslation } from 'react-i18next'
 import { api } from '../../../api/client'
-import type { AnnotationArchive, Annotation, YoloTrack, VideoBox, ClipAnnotationData } from '../../../types'
+import type { AnnotationArchive, Annotation, YoloTrack, VideoBox, ClipAnnotationData, AudioBox, PitchDataArchive } from '../../../types'
 import AnnotationDataTable from './AnnotationDataTable'
 import VideoAnnotationTable from './VideoAnnotationTable'
+import AudioAnnotationTable from './AudioAnnotationTable'
 import AnnotationVisualization from './AnnotationVisualization'
 import MultimodalVisualization from './MultimodalVisualization'
+import AudioVisualization from './AudioVisualization'
 
 // 存档信息类型（从列表传入）
 interface ArchiveInfo {
   id: string
   filename: string
   type: 'text' | 'multimodal'
+  mediaType?: 'video' | 'audio'  // 媒体类型
   framework: string
   textName?: string
   resourceName?: string
@@ -154,10 +158,17 @@ export default function AnnotationHistoryDetail({ archive, onBack }: AnnotationH
   }
   
   const isMultimodal = archive.type === 'multimodal'
+  const isAudio = isMultimodal && archive.mediaType === 'audio'
+  const isVideo = isMultimodal && archive.mediaType !== 'audio'
   const annotations = archiveData.annotations || []
   const yoloAnnotations = archiveData.yoloAnnotations || []
   const manualTracks = archiveData.manualTracks || []
   const clipAnnotations = archiveData.clipAnnotations || null
+  const transcriptSegments = archiveData.transcriptSegments || []
+  // 音频专用
+  const audioBoxes = (archiveData as any).audioBoxes as AudioBox[] || []
+  const pitchData = (archiveData as any).pitchData as PitchDataArchive | undefined
+  const audioVisualizationSvg = (archiveData as any).audioVisualizationSvg as string | undefined
   
   // 计算视频标注总数（manualTracks + annotations 中 type === 'video' 的）
   const videoAnnotationsFromAnnotations = annotations.filter(a => a.type === 'video')
@@ -168,6 +179,14 @@ export default function AnnotationHistoryDetail({ archive, onBack }: AnnotationH
   
   // CLIP标注帧数
   const clipFrameCount = clipAnnotations?.frame_results?.length || 0
+  
+  // 计算音频时长（从转录片段）
+  const audioDuration = transcriptSegments.length > 0 
+    ? Math.max(...transcriptSegments.map(s => s.end))
+    : 60
+    
+  // 颜色方案
+  const cardColor = isAudio ? '#f97316' : (isVideo ? 'secondary.main' : 'primary.main')
   
   return (
     <Box sx={{ height: '100%', width: '100%', overflow: 'auto', p: 2, boxSizing: 'border-box' }}>
@@ -182,7 +201,9 @@ export default function AnnotationHistoryDetail({ archive, onBack }: AnnotationH
         </Button>
         
         <Stack direction="row" alignItems="center" spacing={1}>
-          {isMultimodal ? (
+          {isAudio ? (
+            <AudioFileIcon sx={{ fontSize: 32, color: '#f97316' }} />
+          ) : isVideo ? (
             <VideoFileIcon color="secondary" fontSize="large" />
           ) : (
             <DescriptionIcon color="primary" fontSize="large" />
@@ -191,9 +212,10 @@ export default function AnnotationHistoryDetail({ archive, onBack }: AnnotationH
             {archive.textName || archive.resourceName || archive.id}
           </Typography>
           <Chip 
-            label={isMultimodal ? t('annotation.multimodalAnnotation', '多模态标注') : t('annotation.textAnnotation', '文本标注')}
+            label={isAudio ? t('annotation.audioAnnotation', '音频标注') : (isVideo ? t('annotation.videoAnnotation', '视频标注') : t('annotation.textAnnotation', '文本标注'))}
             size="small"
-            color={isMultimodal ? 'secondary' : 'primary'}
+            sx={isAudio ? { bgcolor: '#f97316', color: 'white' } : undefined}
+            color={isAudio ? undefined : (isVideo ? 'secondary' : 'primary')}
           />
         </Stack>
       </Box>
@@ -222,7 +244,23 @@ export default function AnnotationHistoryDetail({ archive, onBack }: AnnotationH
             </Typography>
             <Typography variant="body2">{isMultimodal ? textAnnotationsCount : annotations.length}</Typography>
           </Box>
-          {isMultimodal && (
+          {isAudio && (
+            <>
+              <Box>
+                <Typography variant="caption" color="text.secondary">
+                  {t('annotation.duration', '时长')}
+                </Typography>
+                <Typography variant="body2">{Math.floor(audioDuration / 60)}:{String(Math.floor(audioDuration % 60)).padStart(2, '0')}</Typography>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary">
+                  {t('annotation.transcriptSegments', '转录片段')}
+                </Typography>
+                <Typography variant="body2">{transcriptSegments.length}</Typography>
+              </Box>
+            </>
+          )}
+          {isVideo && (
             <>
               <Box>
                 <Typography variant="caption" color="text.secondary">
@@ -265,11 +303,11 @@ export default function AnnotationHistoryDetail({ archive, onBack }: AnnotationH
             iconPosition="start" 
             label={t('annotation.textAnnotationList', '文本标注列表')} 
           />
-          {isMultimodal && (
+          {(isVideo || isAudio) && (
             <Tab 
-              icon={<VideoFileIcon />} 
+              icon={isAudio ? <AudioFileIcon /> : <VideoFileIcon />} 
               iconPosition="start" 
-              label={t('annotation.videoAnnotationList', '视频标注列表')} 
+              label={isAudio ? t('annotation.audioAnnotationList', '音频标注列表') : t('annotation.videoAnnotationList', '视频标注列表')} 
             />
           )}
           <Tab 
@@ -284,12 +322,12 @@ export default function AnnotationHistoryDetail({ archive, onBack }: AnnotationH
           <AnnotationDataTable 
             annotations={annotations}
             archiveName={archive.textName || archive.resourceName || archive.id}
-            excludeVideoAnnotations={isMultimodal}
+            excludeVideoAnnotations={isVideo || isAudio}
           />
         </TabPanel>
         
-        {/* 视频标注表格（多模态） */}
-        {isMultimodal && (
+        {/* 视频标注表格（仅视频） */}
+        {isVideo && (
           <TabPanel value={tabValue} index={1}>
             <VideoAnnotationTable 
               annotations={annotations}
@@ -301,9 +339,31 @@ export default function AnnotationHistoryDetail({ archive, onBack }: AnnotationH
           </TabPanel>
         )}
         
+        {/* 音频标注表格（仅音频） */}
+        {isAudio && (
+          <TabPanel value={tabValue} index={1}>
+            <AudioAnnotationTable 
+              audioBoxes={audioBoxes}
+              annotations={annotations.filter(a => a.type === 'audio')}
+              archiveName={archive.textName || archive.resourceName || archive.id}
+            />
+          </TabPanel>
+        )}
+        
         {/* 数据可视化 */}
-        <TabPanel value={tabValue} index={isMultimodal ? 2 : 1}>
-          {isMultimodal ? (
+        <TabPanel value={tabValue} index={(isVideo || isAudio) ? 2 : 1}>
+          {isAudio ? (
+            // 音频标注可视化 - 波形 + 网格 + 音高 + 画框
+            <AudioVisualization
+              annotations={annotations}
+              transcriptSegments={transcriptSegments}
+              duration={audioDuration}
+              audioUrl={archiveData.mediaPath}
+              audioBoxes={audioBoxes}
+              pitchData={pitchData}
+              audioVisualizationSvg={audioVisualizationSvg}
+            />
+          ) : isVideo ? (
             <MultimodalVisualization 
               annotations={annotations}
               yoloAnnotations={yoloAnnotations}

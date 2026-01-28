@@ -28,7 +28,8 @@ import {
   Chip,
   Typography,
   Tooltip,
-  Alert
+  Alert,
+  useTheme
 } from '@mui/material'
 import SearchIcon from '@mui/icons-material/Search'
 import DownloadIcon from '@mui/icons-material/Download'
@@ -86,6 +87,8 @@ const getEntityColor = (label: string): string => {
 
 export default function AnnotationDataTable({ annotations, archiveName, excludeVideoAnnotations = false }: AnnotationDataTableProps) {
   const { t } = useTranslation()
+  const theme = useTheme()
+  const isDarkMode = theme.palette.mode === 'dark'
   
   // 状态
   const [order, setOrder] = useState<Order>('asc')
@@ -190,9 +193,9 @@ export default function AnnotationDataTable({ annotations, archiveName, excludeV
   
   // 表头样式
   const headerCellSx = {
-    bgcolor: '#f5f5f5',
+    bgcolor: isDarkMode ? '#2a2a2a' : '#f5f5f5',
     fontWeight: 600,
-    borderBottom: '2px solid #ddd',
+    borderBottom: isDarkMode ? '2px solid #444' : '2px solid #ddd',
     fontSize: '12px',
     px: 1.5,
     py: 1,
@@ -202,7 +205,7 @@ export default function AnnotationDataTable({ annotations, archiveName, excludeV
   // 表格内容样式
   const bodyCellSx = {
     fontSize: '12px',
-    borderBottom: '1px solid #eee',
+    borderBottom: isDarkMode ? '1px solid #333' : '1px solid #eee',
     px: 1.5,
     py: 0.75
   }

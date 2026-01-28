@@ -21,7 +21,8 @@ import {
   IconButton,
   Tooltip,
   Divider,
-  Chip
+  Chip,
+  useTheme
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
 import SaveAltIcon from '@mui/icons-material/SaveAlt'
@@ -46,6 +47,8 @@ const COLOR_SCHEMES = {
 
 export default function PerplexityDialog({ open, onClose, data }: PerplexityDialogProps) {
   const { t } = useTranslation()
+  const theme = useTheme()
+  const isDarkMode = theme.palette.mode === 'dark'
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const [colorScheme, setColorScheme] = useState<keyof typeof COLOR_SCHEMES>('default')
@@ -124,7 +127,7 @@ export default function PerplexityDialog({ open, onClose, data }: PerplexityDial
       .attr('text-anchor', 'middle')
       .attr('font-size', '18px')
       .attr('font-weight', 'bold')
-      .attr('fill', '#2c3e50')
+      .attr('fill', isDarkMode ? '#e0e0e0' : '#2c3e50')
       .text(t('topicModeling.lda.viz.perplexity', 'Topic Number Optimization'))
     
     // Subtitle
@@ -133,7 +136,7 @@ export default function PerplexityDialog({ open, onClose, data }: PerplexityDial
       .attr('y', 48)
       .attr('text-anchor', 'middle')
       .attr('font-size', '12px')
-      .attr('fill', '#666')
+      .attr('fill', isDarkMode ? '#999' : '#666')
       .text(t('topicModeling.lda.viz.perplexityCoherence', 'Perplexity & Coherence Scores'))
     
     const g = svg.append('g')
@@ -170,7 +173,7 @@ export default function PerplexityDialog({ open, onClose, data }: PerplexityDial
       .attr('x2', innerWidth)
       .attr('y1', d => yPerplexity(d))
       .attr('y2', d => yPerplexity(d))
-      .attr('stroke', '#e0e0e0')
+      .attr('stroke', isDarkMode ? '#444' : '#e0e0e0')
       .attr('stroke-dasharray', '3,3')
     
     // Draw perplexity line
@@ -196,7 +199,7 @@ export default function PerplexityDialog({ open, onClose, data }: PerplexityDial
         .attr('cy', d => yPerplexity(d.perplexity!))
         .attr('r', 6)
         .attr('fill', colors[0])
-        .attr('stroke', 'white')
+        .attr('stroke', isDarkMode ? '#1e1e2e' : 'white')
         .attr('stroke-width', 2)
         .attr('cursor', 'pointer')
         .on('mouseenter', function(event, d) {
@@ -206,13 +209,13 @@ export default function PerplexityDialog({ open, onClose, data }: PerplexityDial
               <span style="display:inline-block;width:10px;height:10px;background:${colors[0]};border-radius:2px;margin-right:8px;"></span>
               <span style="font-weight:bold;color:${colors[0]}">${t('topicModeling.lda.results.perplexity')}</span>
             </div>
-            <div style="color:#555;">
+            <div style="color:${isDarkMode ? '#aaa' : '#555'};">
               <span style="font-weight:500;">${t('topicModeling.lda.params.numTopics')}:</span> 
-              <span style="font-weight:bold;color:#333">${d.num_topics}</span>
+              <span style="font-weight:bold;color:${isDarkMode ? '#e0e0e0' : '#333'}">${d.num_topics}</span>
             </div>
-            <div style="color:#555;">
+            <div style="color:${isDarkMode ? '#aaa' : '#555'};">
               <span style="font-weight:500;">${t('topicModeling.visualization.score', 'Score')}:</span> 
-              <span style="font-weight:bold;color:#333">${d.perplexity?.toFixed(2)}</span>
+              <span style="font-weight:bold;color:${isDarkMode ? '#e0e0e0' : '#333'}">${d.perplexity?.toFixed(2)}</span>
             </div>
           `, event as unknown as MouseEvent)
         })
@@ -248,7 +251,7 @@ export default function PerplexityDialog({ open, onClose, data }: PerplexityDial
         .attr('cy', d => yCoherence(d.coherence!))
         .attr('r', 6)
         .attr('fill', colors[1])
-        .attr('stroke', 'white')
+        .attr('stroke', isDarkMode ? '#1e1e2e' : 'white')
         .attr('stroke-width', 2)
         .attr('cursor', 'pointer')
         .on('mouseenter', function(event, d) {
@@ -258,13 +261,13 @@ export default function PerplexityDialog({ open, onClose, data }: PerplexityDial
               <span style="display:inline-block;width:10px;height:10px;background:${colors[1]};border-radius:2px;margin-right:8px;"></span>
               <span style="font-weight:bold;color:${colors[1]}">${t('topicModeling.lda.results.coherence')}</span>
             </div>
-            <div style="color:#555;">
+            <div style="color:${isDarkMode ? '#aaa' : '#555'};">
               <span style="font-weight:500;">${t('topicModeling.lda.params.numTopics')}:</span> 
-              <span style="font-weight:bold;color:#333">${d.num_topics}</span>
+              <span style="font-weight:bold;color:${isDarkMode ? '#e0e0e0' : '#333'}">${d.num_topics}</span>
             </div>
-            <div style="color:#555;">
+            <div style="color:${isDarkMode ? '#aaa' : '#555'};">
               <span style="font-weight:500;">${t('topicModeling.visualization.score', 'Score')}:</span> 
-              <span style="font-weight:bold;color:#333">${d.coherence?.toFixed(4)}</span>
+              <span style="font-weight:bold;color:${isDarkMode ? '#e0e0e0' : '#333'}">${d.coherence?.toFixed(4)}</span>
             </div>
           `, event as unknown as MouseEvent)
         })
@@ -325,7 +328,7 @@ export default function PerplexityDialog({ open, onClose, data }: PerplexityDial
       .attr('y', height - 10)
       .attr('text-anchor', 'middle')
       .attr('font-size', '12px')
-      .attr('fill', '#666')
+      .attr('fill', isDarkMode ? '#999' : '#666')
       .text(t('topicModeling.lda.params.numTopics', 'Number of Topics'))
     
     // Legend
@@ -354,18 +357,18 @@ export default function PerplexityDialog({ open, onClose, data }: PerplexityDial
         .attr('cy', 0)
         .attr('r', 5)
         .attr('fill', item.color)
-        .attr('stroke', 'white')
+        .attr('stroke', isDarkMode ? '#1e1e2e' : 'white')
         .attr('stroke-width', 1.5)
       
       row.append('text')
         .attr('x', 30)
         .attr('y', 4)
         .attr('font-size', '11px')
-        .attr('fill', '#444')
+        .attr('fill', isDarkMode ? '#ccc' : '#444')
         .text(item.label)
     })
     
-  }, [dimensions, data, colorScheme, tooltip, t])
+  }, [dimensions, data, colorScheme, tooltip, t, isDarkMode])
   
   // Trigger render when dimensions change
   useEffect(() => {
@@ -445,14 +448,14 @@ export default function PerplexityDialog({ open, onClose, data }: PerplexityDial
         </Stack>
       </Box>
       
-      <DialogContent sx={{ p: 0, overflow: 'hidden', display: 'flex' }}>
+      <DialogContent sx={{ p: 0, overflow: 'hidden', display: 'flex', bgcolor: isDarkMode ? '#1e1e2e' : '#fafafa' }}>
         <Box
           ref={containerRef}
           sx={{
             flex: 1,
             width: '100%',
             height: '100%',
-            bgcolor: '#fafafa',
+            bgcolor: isDarkMode ? '#1e1e2e' : '#fafafa',
             overflow: 'hidden',
             display: 'flex',
             '& svg': {
@@ -467,7 +470,7 @@ export default function PerplexityDialog({ open, onClose, data }: PerplexityDial
               ref={svgRef} 
               width={dimensions.width} 
               height={dimensions.height}
-              style={{ background: '#fafafa' }}
+              style={{ background: isDarkMode ? 'transparent' : '#fafafa' }}
             />
           )}
         </Box>

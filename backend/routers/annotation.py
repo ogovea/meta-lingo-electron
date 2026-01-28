@@ -164,6 +164,29 @@ class SpacyAnnotationData(BaseModel):
     error: Optional[str] = None
 
 
+# ==================== Audio Box Models ====================
+
+class AudioBox(BaseModel):
+    """Audio box annotation - time region annotation on waveform"""
+    id: int
+    label: str
+    color: str
+    startTime: float      # Start time in seconds
+    endTime: float        # End time in seconds
+    y: float              # Y coordinate (normalized 0-1)
+    height: float         # Height (normalized 0-1)
+    text: Optional[str] = None  # Optional text note
+
+
+class PitchDataArchive(BaseModel):
+    """Pitch data for archive storage"""
+    enabled: bool
+    f0: List[float]       # Fundamental frequency array
+    times: List[float]    # Time points array
+    fmin: float           # Minimum frequency
+    fmax: float           # Maximum frequency
+
+
 class SaveAnnotationRequest(BaseModel):
     corpusName: str
     textId: Optional[str] = None  # 文本ID，用于精确关联文本
@@ -183,6 +206,10 @@ class SaveAnnotationRequest(BaseModel):
     spacyAnnotation: Optional[SpacyAnnotationData] = None  # SpaCy标注数据 (用于恢复)
     archiveId: Optional[str] = None
     coderName: Optional[str] = None  # 编码者名称
+    # Audio specific
+    audioBoxes: Optional[List[AudioBox]] = None  # Audio box annotations
+    pitchData: Optional[PitchDataArchive] = None  # Pitch data for visualization
+    audioVisualizationSvg: Optional[str] = None  # SVG visualization of audio waveform
 
 
 class AnnotationArchiveListItem(BaseModel):
@@ -282,6 +309,7 @@ def list_archives(corpus_name: str, archive_type: Optional[str] = None, text_id:
                     'framework': archive.get('framework', 'Unknown'),
                     'textName': archive.get('textName'),
                     'resourceName': archive.get('resourceName'),
+                    'mediaType': archive.get('mediaType'),  # 返回媒体类型 (video/audio)
                     'annotationCount': len(archive.get('annotations', [])),
                     'clipFrameCount': clip_frame_count,
                     'yoloCount': yolo_count,
@@ -469,6 +497,13 @@ async def save_annotation(data: SaveAnnotationRequest):
             archive['manualTracks'] = [t.model_dump() for t in data.manualTracks]
         if data.clipAnnotations:
             archive['clipAnnotations'] = data.clipAnnotations.model_dump()
+        # Audio specific data
+        if data.audioBoxes:
+            archive['audioBoxes'] = [b.model_dump() for b in data.audioBoxes]
+        if data.pitchData:
+            archive['pitchData'] = data.pitchData.model_dump()
+        if data.audioVisualizationSvg:
+            archive['audioVisualizationSvg'] = data.audioVisualizationSvg
     
     # Save to file
     saved_path = save_archive(data.corpusName, archive)

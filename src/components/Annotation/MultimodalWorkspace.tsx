@@ -47,10 +47,43 @@ import type {
   SelectedLabel,
   YoloTrack,
   TranscriptSegment,
-  VideoKeyframe
+  VideoKeyframe,
+  AudioBox
 } from '../../types'
 import { AnnotationTable } from './index'
 import TranscriptAnnotator from './TranscriptAnnotator'
+import WavesurferWaveform, { WavesurferWaveformRef } from './WavesurferWaveform'
+
+// Word alignment data from Wav2Vec2
+interface WordAlignment {
+  word: string
+  start: number
+  end: number
+  score: number
+}
+
+// Alignment data from forced alignment
+interface AlignmentData {
+  enabled: boolean
+  word_alignments?: WordAlignment[]
+  char_alignments?: Array<{ char: string; start: number; end: number; score: number }>
+  error?: string
+  reason?: string
+}
+
+// Pitch data from TorchCrepe
+interface PitchData {
+  enabled: boolean
+  hop_length_ms?: number
+  sample_rate?: number
+  fmin?: number
+  fmax?: number
+  f0?: number[]
+  periodicity?: number[]
+  times?: number[]
+  error?: string
+  reason?: string
+}
 
 interface VideoBox {
   x1: number
@@ -125,6 +158,14 @@ interface MultimodalWorkspaceProps {
   showSpacyAnnotations?: boolean
   clipAnnotation?: ClipAnnotationData | null
   searchHighlights?: SearchHighlight[]  // 来自父组件的搜索高亮
+  // Audio waveform data (English only)
+  alignmentData?: AlignmentData | null
+  pitchData?: PitchData | null
+  // 音频画框标注
+  savedAudioBoxes?: AudioBox[]
+  onAudioBoxAdd?: (box: Omit<AudioBox, 'id'>) => void
+  // 导出波形 SVG 的回调（注册导出函数）
+  onWaveformExportReady?: (exportFn: () => string | null) => void
 }
 
 // Format time in seconds to MM:SS.ms format
@@ -188,7 +229,12 @@ export default function MultimodalWorkspace({
   spacyEntities = [],
   showSpacyAnnotations = true,
   clipAnnotation = null,
-  searchHighlights: externalSearchHighlights = []
+  searchHighlights: externalSearchHighlights = [],
+  alignmentData = null,
+  pitchData = null,
+  savedAudioBoxes = [],
+  onAudioBoxAdd,
+  onWaveformExportReady
 }: MultimodalWorkspaceProps) {
   // showSpacyAnnotations is no longer used (removed from UI)
   void showSpacyAnnotations
@@ -198,6 +244,7 @@ export default function MultimodalWorkspace({
   
   const videoRef = useRef<HTMLVideoElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
+  const wavesurferRef = useRef<WavesurferWaveformRef>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -217,10 +264,12 @@ export default function MultimodalWorkspace({
   // Actual video content position within the container (for object-fit: contain)
   const [videoContentOffset, setVideoContentOffset] = useState({ x: 0, y: 0 })
 
-  // Drawing state
+  // Drawing state (for video)
   const [drawMode, setDrawMode] = useState(false)
   const [isDrawing, setIsDrawing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)  // For box dragging
+  // Audio draw mode (separate from video)
+  const [audioDrawMode, setAudioDrawMode] = useState(false)
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null)
   const [drawStart, setDrawStart] = useState<{ x: number; y: number } | null>(null)
   const [currentBox, setCurrentBox] = useState<VideoBox | null>(null)
@@ -237,6 +286,19 @@ export default function MultimodalWorkspace({
   const [highlightedAnnotationId, setHighlightedAnnotationId] = useState<string | null>(null)
   const [highlightedSegmentId, setHighlightedSegmentId] = useState<string | null>(null)
   const [bottomTabIndex, setBottomTabIndex] = useState(0)
+
+  // 注册波形导出函数（音频模式）- 延迟调用避免渲染问题
+  const exportRegisteredRef = useRef(false)
+  useEffect(() => {
+    if (mediaType === 'audio' && onWaveformExportReady && !exportRegisteredRef.current) {
+      // 延迟注册，确保 WaveSurfer 已完全初始化
+      const timer = setTimeout(() => {
+        exportRegisteredRef.current = true
+        onWaveformExportReady(() => wavesurferRef.current?.exportToSVG() || null)
+      }, 3000)  // 3秒后注册
+      return () => clearTimeout(timer)
+    }
+  }, [mediaType, onWaveformExportReady])
 
   // Get media element
   const mediaRef = mediaType === 'video' ? videoRef : audioRef
@@ -271,6 +333,13 @@ export default function MultimodalWorkspace({
   const currentSegment = useMemo(() => {
     return transcriptSegments.find(s => currentTime >= s.start && currentTime <= s.end)
   }, [transcriptSegments, currentTime])
+
+  // Auto-highlight current segment for audio with WaveSurfer (video uses handleTimeUpdate)
+  useEffect(() => {
+    if (mediaType === 'audio' && currentSegment && isPlaying) {
+      setHighlightedSegmentId(String(currentSegment.id))
+    }
+  }, [mediaType, currentSegment, isPlaying])
 
   // Get YOLO labels active within current segment's time range
   const currentYoloLabels = useMemo(() => {
@@ -426,9 +495,19 @@ export default function MultimodalWorkspace({
 
   // Seek to specific time
   const seekTo = useCallback((time: number) => {
+    const clampedTime = Math.max(0, Math.min(duration, time))
+    
+    // Try WaveSurfer first (for audio with alignment)
+    if (wavesurferRef.current) {
+      wavesurferRef.current.seekTo(clampedTime)
+      setCurrentTime(clampedTime)
+      setCurrentFrame(Math.round(clampedTime * fps))
+      return
+    }
+    
+    // Fall back to native media element
     const media = mediaRef.current
     if (media) {
-      const clampedTime = Math.max(0, Math.min(duration, time))
       media.currentTime = clampedTime
       setCurrentTime(media.currentTime)
       setCurrentFrame(Math.round(media.currentTime * fps))
@@ -504,7 +583,7 @@ export default function MultimodalWorkspace({
     if (!drawMode) return
     setIsDrawing(true)
     setDrawStart({ x, y })
-  }, [drawMode, videoScale, currentBox, isPointInBox])
+  }, [drawMode, videoScale, currentBox, isPointInBox, mediaType, audioDrawMode])
 
   const handleCanvasMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current) return
@@ -584,7 +663,7 @@ export default function MultimodalWorkspace({
 
     onAnnotationAdd(annotation)
     showFrameMsg('框选已确认并添加到标注', 'success')
-  }, [currentBox, selectedLabel, onAnnotationAdd, showFrameMsg])
+  }, [currentBox, selectedLabel, onAnnotationAdd, showFrameMsg, mediaType])
 
   // Clear current box
   const clearBox = useCallback(() => {
@@ -945,12 +1024,12 @@ export default function MultimodalWorkspace({
           )}
         </Stack>
         <Stack direction="row" spacing={2} alignItems="center">
-          <Typography variant="body2">
-            <strong>当前标签:</strong>{' '}
+          <Typography variant="body2" color="text.primary">
+            <strong>{t('annotation.selectedLabel', '当前标签')}:</strong>{' '}
             <Chip 
-              label={selectedLabel?.node.name || '未选择'} 
+              label={selectedLabel?.node.name || t('annotation.noLabelSelected', '未选择')} 
               size="small" 
-              sx={{ bgcolor: selectedLabel?.color || 'grey.300', color: 'white' }}
+              sx={{ bgcolor: selectedLabel?.color || 'action.disabledBackground', color: selectedLabel ? 'white' : 'text.secondary' }}
             />
           </Typography>
         </Stack>
@@ -1298,20 +1377,92 @@ export default function MultimodalWorkspace({
       {/* Audio Section */}
       {mediaType === 'audio' && (
         <Paper sx={{ p: 2 }}>
-          <audio
-            ref={audioRef}
-            src={mediaPath}
-            onTimeUpdate={handleTimeUpdate}
-            onLoadedMetadata={handleLoadedMetadata}
-            onPlay={() => setIsPlaying(true)}
-            onPause={() => setIsPlaying(false)}
-            controls
-            style={{ width: '100%' }}
-          />
+          {/* Use WavesurferWaveform for English audio with alignment data */}
+          {alignmentData?.enabled && alignmentData.word_alignments && alignmentData.word_alignments.length > 0 ? (
+            <>
+              {/* WaveSurfer handles all audio playback - no separate audio element needed */}
+              <WavesurferWaveform
+                ref={wavesurferRef}
+                audioUrl={mediaPath}
+                duration={duration}
+                currentTime={currentTime}
+                wordAlignments={alignmentData.word_alignments}
+                pitchData={pitchData?.enabled ? pitchData as any : undefined}
+                onSeek={(time) => {
+                  setCurrentTime(time)
+                  setCurrentFrame(Math.round(time * fps))
+                }}
+                onTimeUpdate={(time) => {
+                  setCurrentTime(time)
+                  setCurrentFrame(Math.round(time * fps))
+                }}
+                onDurationChange={(dur) => {
+                  setDuration(dur)
+                }}
+                onRangeSelect={(range) => {
+                  // Create annotation from selected range
+                  if (selectedLabel) {
+                    const rangeText = transcriptText.substring(
+                      Math.floor(range.start * 10),
+                      Math.floor(range.end * 10)
+                    ) || `[${range.start.toFixed(2)}s - ${range.end.toFixed(2)}s]`
+                    
+                    onAnnotationAdd({
+                      text: rangeText,
+                      startPosition: 0,
+                      endPosition: 0,
+                      label: selectedLabel.node.name,
+                      labelPath: selectedLabel.path,
+                      color: selectedLabel.color,
+                      type: 'audio',
+                      timestamp: range.start,
+                      frameNumber: Math.floor(range.start * fps)
+                    })
+                  }
+                }}
+                onWordClick={(word) => {
+                  // Add annotation for clicked word
+                  if (selectedLabel) {
+                    onAnnotationAdd({
+                      text: word.word,
+                      startPosition: 0,
+                      endPosition: 0,
+                      label: selectedLabel.node.name,
+                      labelPath: selectedLabel.path,
+                      color: selectedLabel.color,
+                      type: 'audio',
+                      timestamp: word.start,
+                      frameNumber: Math.floor(word.start * fps)
+                    })
+                  }
+                }}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                height={300}  // 与视频播放框高度一致
+                // 画框标注功能
+                selectedLabel={selectedLabel}
+                savedAudioBoxes={savedAudioBoxes}
+                onAudioBoxAdd={onAudioBoxAdd}
+                onDrawModeChange={(mode) => {
+                  setAudioDrawMode(mode);
+                }}
+              />
+            </>
+          ) : (
+            /* Standard audio player for non-English or no alignment */
+            <audio
+              ref={audioRef}
+              src={mediaPath}
+              onTimeUpdate={handleTimeUpdate}
+              onLoadedMetadata={handleLoadedMetadata}
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              controls
+              style={{ width: '100%' }}
+            />
+          )}
         </Paper>
       )}
-
-      {/* Timeline removed - YOLO labels now shown in subtitle area */}
 
       {/* Bottom Section: Transcript & Annotations */}
       <Paper sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 250 }}>
@@ -1338,6 +1489,7 @@ export default function MultimodalWorkspace({
               yoloTracks={yoloTracks}
               clipAnnotation={clipAnnotation}
               searchHighlights={externalSearchHighlights}
+              disabled={audioDrawMode || drawMode}
             />
           )}
 

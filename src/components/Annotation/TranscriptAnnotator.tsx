@@ -49,6 +49,7 @@ interface TranscriptAnnotatorProps {
   language?: string  // Language for syntax analysis
   clipAnnotation?: ClipAnnotationData | null  // Optional CLIP annotation data
   searchHighlights?: SearchHighlight[]  // 搜索高亮
+  disabled?: boolean  // 禁用标注功能（例如音频画框模式时）
 }
 
 // Format time in MM:SS format
@@ -199,7 +200,8 @@ const TranscriptAnnotator = forwardRef<TranscriptAnnotatorRef, TranscriptAnnotat
   yoloTracks = [],
   clipAnnotation,
   language = 'english',
-  searchHighlights = []
+  searchHighlights = [],
+  disabled = false
 }, ref) => {
   const theme = useTheme()
   const isDarkMode = theme.palette.mode === 'dark'
@@ -388,6 +390,9 @@ const TranscriptAnnotator = forwardRef<TranscriptAnnotatorRef, TranscriptAnnotat
       }
       
       const segAnnotations = annotations.filter(ann => {
+        // 排除视频和音频画框标注，只显示文本标注
+        if (ann.type === 'video' || ann.type === 'audio') return false
+        
         // Check if annotation falls within this segment's text range
         const segStart = offset
         const segEnd = offset + segment.text.length
@@ -496,6 +501,9 @@ const TranscriptAnnotator = forwardRef<TranscriptAnnotatorRef, TranscriptAnnotat
 
   // Handle text selection for annotation
   const handleTextSelection = useCallback((segmentId: string, segmentOffset: number) => {
+    // 如果禁用了标注功能，直接返回
+    if (disabled) return
+    
     const selection = window.getSelection()
     if (!selection || selection.isCollapsed) return
 
@@ -547,7 +555,7 @@ const TranscriptAnnotator = forwardRef<TranscriptAnnotatorRef, TranscriptAnnotat
 
     onAnnotationAdd(annotation)
     selection.removeAllRanges()
-  }, [selectedLabel, onAnnotationAdd, annotations])
+  }, [selectedLabel, onAnnotationAdd, annotations, disabled])
 
   // Handle annotation block click (delete)
   const handleBlockClick = useCallback((ann: Annotation, e: React.MouseEvent) => {
@@ -704,13 +712,19 @@ const TranscriptAnnotator = forwardRef<TranscriptAnnotatorRef, TranscriptAnnotat
 
       <Paper 
         ref={containerRef}
+        onMouseUp={disabled ? (e) => { e.stopPropagation(); e.preventDefault(); } : undefined}
+        onMouseDown={disabled ? (e) => { e.stopPropagation(); e.preventDefault(); } : undefined}
         sx={{ 
           p: 1.5, 
           bgcolor: isDarkMode ? 'rgba(255,255,255,0.03)' : '#fafafa',
           borderRadius: 1, 
           border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : '#e0e0e0'}`,
           maxHeight: 400,
-          overflow: 'auto'  // 支持横向和纵向滚动
+          overflow: 'auto',  // 支持横向和纵向滚动
+          opacity: disabled ? 0.7 : 1,  // 禁用时降低透明度
+          position: 'relative',
+          pointerEvents: disabled ? 'none' : 'auto',  // 禁用时阻止所有鼠标事件
+          userSelect: disabled ? 'none' : 'auto'  // 禁用时不允许选择文本
         }}
       >
         {transcriptSegments.map((segment) => {
@@ -858,7 +872,7 @@ const TranscriptAnnotator = forwardRef<TranscriptAnnotatorRef, TranscriptAnnotat
                 {/* Segment Text - plain text, no highlighting, no wrap */}
                 <Box
                   className="segment-text"
-                  onMouseUp={() => handleTextSelection(segId, segOffset)}
+                  onMouseUp={disabled ? undefined : () => handleTextSelection(segId, segOffset)}
                   sx={{
                     whiteSpace: 'nowrap',  // 不换行，通过滚动查看
                     py: 0.5,
@@ -866,9 +880,10 @@ const TranscriptAnnotator = forwardRef<TranscriptAnnotatorRef, TranscriptAnnotat
                     position: 'relative',
                     fontSize: '14px',
                     fontFamily: '"Segoe UI", "Microsoft YaHei", Arial, sans-serif',
-                    userSelect: 'text',
-                    cursor: selectedLabel ? 'text' : 'default',
+                    userSelect: disabled ? 'none' : 'text',  // 禁用时不允许选择文本
+                    cursor: disabled ? 'default' : (selectedLabel ? 'text' : 'default'),
                     bgcolor: isHighlighted ? 'rgba(76, 175, 80, 0.1)' : 'transparent',
+                    pointerEvents: disabled ? 'none' : 'auto',  // 禁用时阻止所有鼠标事件
                     borderRadius: 0.5,
                     transition: 'background-color 0.2s',
                     '&::selection': {

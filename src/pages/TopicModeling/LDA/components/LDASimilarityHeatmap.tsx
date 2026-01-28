@@ -5,7 +5,7 @@
  */
 
 import { useRef, useEffect, useState } from 'react'
-import { Box, Typography, CircularProgress, Alert } from '@mui/material'
+import { Box, Typography, CircularProgress, Alert, useTheme } from '@mui/material'
 import * as d3 from 'd3'
 import { useTranslation } from 'react-i18next'
 import type { LDAHeatmapData } from '../../../../types/topicModeling'
@@ -35,6 +35,8 @@ export default function LDASimilarityHeatmap({
   error = null
 }: LDASimilarityHeatmapProps) {
   const { t } = useTranslation()
+  const theme = useTheme()
+  const isDarkMode = theme.palette.mode === 'dark'
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
@@ -65,6 +67,16 @@ export default function LDASimilarityHeatmap({
     const margin = { top: 70, right: 80, bottom: 100, left: 100 }
     const innerWidth = width - margin.left - margin.right
     const innerHeight = height - margin.top - margin.bottom
+    
+    // Theme colors
+    const colors = {
+      title: isDarkMode ? '#e0e0e0' : '#2c3e50',
+      subtitle: isDarkMode ? '#999' : '#666',
+      label: isDarkMode ? '#ccc' : '#444',
+      legendBorder: isDarkMode ? '#555' : '#ddd',
+      legendText: isDarkMode ? '#999' : '#666',
+      cellHover: isDarkMode ? '#e0e0e0' : '#333'
+    }
 
     const svg = d3.select(svgRef.current)
     svg.selectAll('*').remove()
@@ -83,7 +95,7 @@ export default function LDASimilarityHeatmap({
       .attr('text-anchor', 'middle')
       .attr('font-size', '18px')
       .attr('font-weight', 'bold')
-      .attr('fill', '#2c3e50')
+      .attr('fill', colors.title)
       .text(t('topicModeling.lda.viz.similarityMatrix', 'Similarity Matrix'))
 
     // Subtitle
@@ -92,7 +104,7 @@ export default function LDASimilarityHeatmap({
       .attr('y', 48)
       .attr('text-anchor', 'middle')
       .attr('font-size', '12px')
-      .attr('fill', '#666')
+      .attr('fill', colors.subtitle)
       .text(t('topicModeling.lda.viz.similarityMatrixSubtitle', 'Topic Similarity Matrix Based on Keywords'))
 
     // Main group
@@ -158,7 +170,7 @@ export default function LDASimilarityHeatmap({
     cells
       .on('mouseenter', function(event, d) {
         d3.select(this)
-          .attr('stroke', '#333')
+          .attr('stroke', colors.cellHover)
           .attr('stroke-width', 2)
 
         const rowLabel = labels[d[0]] || t('topicModeling.lda.viz.topicLabel', 'Topic {{topicId}}', { topicId: d[0] })
@@ -201,7 +213,7 @@ export default function LDASimilarityHeatmap({
       .attr('text-anchor', 'end')
       .attr('dy', '0.35em')
       .attr('font-size', Math.min(11, cellHeight - 2))
-      .attr('fill', '#444')
+      .attr('fill', colors.label)
       .text(d => truncateText(d, 15))
       .attr('opacity', 0)
       .transition()
@@ -219,7 +231,7 @@ export default function LDASimilarityHeatmap({
       .attr('text-anchor', 'start')
       .attr('transform', (_, i) => `rotate(45, ${i * cellWidth + cellWidth / 2}, ${innerHeight + 8})`)
       .attr('font-size', Math.min(11, cellWidth - 2))
-      .attr('fill', '#444')
+      .attr('fill', colors.label)
       .text(d => truncateText(d, 15))
       .attr('opacity', 0)
       .transition()
@@ -255,7 +267,7 @@ export default function LDASimilarityHeatmap({
       .attr('width', legendWidth)
       .attr('height', legendHeight)
       .attr('fill', `url(#${gradientId})`)
-      .attr('stroke', '#ddd')
+      .attr('stroke', colors.legendBorder)
       .attr('stroke-width', 1)
       .attr('rx', 2)
 
@@ -264,7 +276,7 @@ export default function LDASimilarityHeatmap({
       .attr('x', legendX + legendWidth + 5)
       .attr('y', legendY + legendHeight)
       .attr('font-size', '10px')
-      .attr('fill', '#666')
+      .attr('fill', colors.legendText)
       .attr('dy', '0.35em')
       .text(min_value.toFixed(1))
 
@@ -272,11 +284,11 @@ export default function LDASimilarityHeatmap({
       .attr('x', legendX + legendWidth + 5)
       .attr('y', legendY)
       .attr('font-size', '10px')
-      .attr('fill', '#666')
+      .attr('fill', colors.legendText)
       .attr('dy', '0.35em')
       .text(max_value.toFixed(1))
 
-  }, [data, dimensions, t])
+  }, [data, dimensions, t, isDarkMode])
 
   if (loading) {
     return (

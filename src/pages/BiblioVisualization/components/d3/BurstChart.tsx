@@ -6,7 +6,7 @@
  * Multiple burst periods for the same term are merged into a single row
  */
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
 import * as d3 from 'd3'
 import { Box, Typography, CircularProgress, useTheme } from '@mui/material'
 import { useTranslation } from 'react-i18next'
@@ -59,8 +59,8 @@ export default function BurstChart({
   const [dimensions, setDimensions] = useState({ width, height })
   const [tooltip, setTooltip] = useState<{ x: number; y: number; content: string } | null>(null)
   
-  // Theme-aware colors
-  const themeColors = {
+  // Theme-aware colors - memoized to prevent useEffect re-runs
+  const themeColors = React.useMemo(() => ({
     headerBg: isDark ? '#2d2d2d' : '#f5f5f5',
     textPrimary: isDark ? '#e0e0e0' : '#333',
     textSecondary: isDark ? '#aaa' : '#666',
@@ -72,7 +72,7 @@ export default function BurstChart({
     rowOdd: isDark ? '#252525' : '#fafafa',
     gridLine: isDark ? '#333' : '#f0f0f0',
     background: isDark ? '#555' : '#e0e0e0'
-  }
+  }), [isDark])
   
   // Smart tooltip positioning to avoid overflow
   const showTooltip = useCallback((event: MouseEvent, content: string) => {

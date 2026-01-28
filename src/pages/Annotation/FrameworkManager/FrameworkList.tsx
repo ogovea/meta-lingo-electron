@@ -34,7 +34,8 @@ import {
   TableHead,
   TableRow,
   TablePagination,
-  Skeleton
+  Skeleton,
+  useTheme
 } from '@mui/material'
 import {
   Search as SearchIcon,
@@ -71,6 +72,15 @@ export const FrameworkList: React.FC<FrameworkListProps> = ({
   onImport
 }) => {
   const { t } = useTranslation()
+  const theme = useTheme()
+  const isDarkMode = theme.palette.mode === 'dark'
+  
+  // 主题适配的标签颜色
+  const chipColors = {
+    tiers: { bgcolor: isDarkMode ? '#0c4a6e' : '#f0f9ff', color: isDarkMode ? '#7dd3fc' : '#0369a1' },
+    labels: { bgcolor: isDarkMode ? '#064e3b' : '#f0fdf4', color: isDarkMode ? '#6ee7b7' : '#16a34a' },
+    editable: { bgcolor: isDarkMode ? '#78350f' : '#fef3c7', color: isDarkMode ? '#fcd34d' : '#d97706' },
+  }
   
   // UI state
   const [viewMode, setViewMode] = useState<'card' | 'list'>('card')
@@ -383,8 +393,8 @@ export const FrameworkList: React.FC<FrameworkListProps> = ({
                       sx={{ 
                         height: 20, 
                         fontSize: '10px',
-                        bgcolor: '#f0f9ff',
-                        color: '#0369a1',
+                        bgcolor: chipColors.tiers.bgcolor,
+                        color: chipColors.tiers.color,
                         '& .MuiChip-label': { px: 1 }
                       }}
                     />
@@ -394,8 +404,8 @@ export const FrameworkList: React.FC<FrameworkListProps> = ({
                       sx={{ 
                         height: 20, 
                         fontSize: '10px',
-                        bgcolor: '#f0fdf4',
-                        color: '#16a34a',
+                        bgcolor: chipColors.labels.bgcolor,
+                        color: chipColors.labels.color,
                         '& .MuiChip-label': { px: 1 }
                       }}
                     />
@@ -406,8 +416,8 @@ export const FrameworkList: React.FC<FrameworkListProps> = ({
                         sx={{ 
                           height: 20, 
                           fontSize: '10px',
-                          bgcolor: '#fef3c7',
-                          color: '#d97706',
+                          bgcolor: chipColors.editable.bgcolor,
+                          color: chipColors.editable.color,
                           '& .MuiChip-label': { px: 1 }
                         }}
                       />

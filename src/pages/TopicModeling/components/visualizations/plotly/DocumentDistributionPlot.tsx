@@ -42,30 +42,58 @@ export default function DocumentDistributionPlot({
   }, [height])
 
   const plotlyLayout = useMemo(() => {
+    const isDarkMode = theme.palette.mode === 'dark'
+    const fontColor = isDarkMode ? '#e0e0e0' : theme.palette.text.primary
+    const axisColor = isDarkMode ? '#ccc' : '#666'
+    const gridColor = isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
+    
     if (!data || !data.layout) {
       return {
         autosize: true,
         height,
         paper_bgcolor: 'rgba(0,0,0,0)',
-        plot_bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+        plot_bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
         font: {
-          color: theme.palette.text.primary,
+          color: fontColor,
           family: 'Arial, sans-serif',
           size: 12
         }
       }
     }
 
-    // Merge with theme-aware colors
+    // Handle title - can be string or object
+    let titleConfig = data.layout.title
+    if (typeof titleConfig === 'string') {
+      titleConfig = { text: titleConfig, font: { color: fontColor } }
+    } else if (titleConfig) {
+      titleConfig = { ...titleConfig, font: { ...titleConfig.font, color: fontColor } }
+    }
+
+    // Merge with theme-aware colors - force override title and axis colors
     return {
       ...data.layout,
       autosize: true,
       height,
       paper_bgcolor: 'rgba(0,0,0,0)',
-      plot_bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+      plot_bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
       font: {
         ...data.layout.font,
-        color: theme.palette.text.primary
+        color: fontColor
+      },
+      title: titleConfig,
+      xaxis: {
+        ...data.layout.xaxis,
+        color: axisColor,
+        tickfont: { ...data.layout.xaxis?.tickfont, color: axisColor },
+        titlefont: { ...data.layout.xaxis?.titlefont, color: axisColor },
+        gridcolor: gridColor
+      },
+      yaxis: {
+        ...data.layout.yaxis,
+        color: axisColor,
+        tickfont: { ...data.layout.yaxis?.tickfont, color: axisColor },
+        titlefont: { ...data.layout.yaxis?.titlefont, color: axisColor },
+        gridcolor: gridColor
       }
     }
   }, [data, height, theme])

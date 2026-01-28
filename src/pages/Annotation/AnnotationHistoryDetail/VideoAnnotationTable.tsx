@@ -27,7 +27,8 @@ import {
   Stack,
   Chip,
   Typography,
-  Alert
+  Alert,
+  useTheme
 } from '@mui/material'
 import SearchIcon from '@mui/icons-material/Search'
 import DownloadIcon from '@mui/icons-material/Download'
@@ -64,6 +65,8 @@ export default function VideoAnnotationTable({
   archiveName 
 }: VideoAnnotationTableProps) {
   const { t } = useTranslation()
+  const theme = useTheme()
+  const isDarkMode = theme.palette.mode === 'dark'
   
   // 状态
   const [order, setOrder] = useState<Order>('asc')
@@ -236,9 +239,9 @@ export default function VideoAnnotationTable({
   
   // 表头样式
   const headerCellSx = {
-    bgcolor: '#f5f5f5',
+    bgcolor: isDarkMode ? '#2a2a2a' : '#f5f5f5',
     fontWeight: 600,
-    borderBottom: '2px solid #ddd',
+    borderBottom: isDarkMode ? '2px solid #444' : '2px solid #ddd',
     fontSize: '12px',
     px: 1.5,
     py: 1,
@@ -248,7 +251,7 @@ export default function VideoAnnotationTable({
   // 表格内容样式
   const bodyCellSx = {
     fontSize: '12px',
-    borderBottom: '1px solid #eee',
+    borderBottom: isDarkMode ? '1px solid #333' : '1px solid #eee',
     px: 1.5,
     py: 0.75
   }

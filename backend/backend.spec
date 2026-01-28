@@ -214,6 +214,16 @@ clip_path = os.path.join(MODELS_PATH, 'multimodal_analyzer', 'clip-vit-large-pat
 if os.path.exists(clip_path):
     datas.append((clip_path, 'models/multimodal_analyzer/clip-vit-large-patch14'))
 
+# Wav2Vec2 模型 (强制对齐)
+wav2vec2_path = os.path.join(MODELS_PATH, 'multimodal_analyzer', 'wav2vec2-base-960h')
+if os.path.exists(wav2vec2_path):
+    datas.append((wav2vec2_path, 'models/multimodal_analyzer/wav2vec2-base-960h'))
+
+# TorchCrepe 模型 (音高提取)
+torchcrepe_path = os.path.join(MODELS_PATH, 'multimodal_analyzer', 'torchcrepe-master')
+if os.path.exists(torchcrepe_path):
+    datas.append((torchcrepe_path, 'models/multimodal_analyzer/torchcrepe-master'))
+
 # PyMUSAS Neural 模型
 pymusas_neural_path = os.path.join(MODELS_PATH, 'pymusas', 'PyMUSAS-Neural-Multilingual-Base-BEM')
 if os.path.exists(pymusas_neural_path):

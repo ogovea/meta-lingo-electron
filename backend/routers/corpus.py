@@ -693,6 +693,173 @@ async def reannotate_spacy(
     }
 
 
+@router.post("/{corpus_id}/texts/{text_id}/reannotate-alignment")
+async def reannotate_alignment(
+    corpus_id: str,
+    text_id: str,
+    background_tasks: BackgroundTasks
+):
+    """
+    Re-run Wav2Vec2 alignment and TorchCrepe pitch extraction on an English audio file.
+    This is useful for audio files uploaded before the alignment feature was added.
+    """
+    from models.database import TextDB, CorpusDB, TaskDB
+    
+    logger.info(f"=== POST /{corpus_id}/texts/{text_id}/reannotate-alignment called ===")
+    
+    text = TextDB.get_by_id(text_id)
+    if not text:
+        raise HTTPException(status_code=404, detail="Text not found")
+    
+    corpus = CorpusDB.get_by_id(corpus_id)
+    if not corpus:
+        raise HTTPException(status_code=404, detail="Corpus not found")
+    
+    media_type = text.get('media_type', 'text')
+    if media_type not in ['audio', 'video']:
+        raise HTTPException(status_code=400, detail="Alignment only available for audio/video files")
+    
+    language = corpus.get('language', 'english')
+    if language.lower() not in ['en', 'english']:
+        raise HTTPException(status_code=400, detail="Alignment only available for English audio")
+    
+    transcript_json_path = text.get('transcript_json_path')
+    if not transcript_json_path or not os.path.exists(transcript_json_path):
+        raise HTTPException(status_code=400, detail="Transcript JSON not found")
+    
+    # Get audio path
+    media_path = text.get('media_path') or text.get('audio_path') or text.get('video_path')
+    if not media_path or not os.path.exists(media_path):
+        raise HTTPException(status_code=400, detail="Audio file not found")
+    
+    # For video files, need to extract audio first
+    if media_type == 'video':
+        # Check if extracted audio exists
+        video_path = Path(media_path)
+        audio_path = video_path.parent / f"{video_path.stem}.wav"
+        if not audio_path.exists():
+            raise HTTPException(status_code=400, detail="Extracted audio not found. Please re-upload the video with transcription enabled.")
+        media_path = str(audio_path)
+    
+    # Create task for tracking
+    task_id = str(uuid.uuid4())
+    
+    TaskDB.create({
+        "id": task_id,
+        "corpus_id": corpus_id,
+        "text_id": text_id,
+        "task_type": "alignment_reannotate",
+        "status": "pending",
+        "message": "Re-annotating alignment and pitch..."
+    })
+    
+    create_progress_queue(task_id)
+    
+    def run_alignment():
+        try:
+            send_progress_sync(task_id, "alignment", 5, "Loading transcript...")
+            
+            # Load transcript
+            with open(transcript_json_path, 'r', encoding='utf-8') as f:
+                transcript_data = json.load(f)
+            
+            full_text = transcript_data.get('full_text', '')
+            if not full_text:
+                send_progress_sync(task_id, "error", 0, "No transcript text found", status="failed")
+                return
+            
+            # Run Wav2Vec2 alignment
+            send_progress_sync(task_id, "alignment", 10, "Loading Wav2Vec2 model...")
+            
+            from services.alignment_service import get_alignment_service
+            alignment_svc = get_alignment_service()
+            
+            send_progress_sync(task_id, "alignment", 20, "Performing forced alignment...")
+            
+            def alignment_progress(pct, msg):
+                overall_pct = 20 + int(pct * 0.30)
+                send_progress_sync(task_id, "alignment", overall_pct, msg)
+            
+            alignment_result = alignment_svc.align_audio(media_path, full_text, alignment_progress)
+            
+            alignment_success = False
+            if alignment_result.get("success"):
+                word_alignments = alignment_result.get("word_alignments", [])
+                if word_alignments and len(word_alignments) > 0:
+                    transcript_data["alignment"] = {
+                        "enabled": True,
+                        "word_alignments": word_alignments,
+                        "char_alignments": alignment_result.get("char_alignments", [])
+                    }
+                    alignment_success = True
+                    logger.info(f"Alignment complete: {len(word_alignments)} words")
+                    send_progress_sync(task_id, "alignment", 50, f"Aligned {len(word_alignments)} words")
+                else:
+                    transcript_data["alignment"] = {"enabled": False, "error": "No word alignments generated"}
+                    logger.warning("Alignment returned success but no word alignments")
+                    send_progress_sync(task_id, "alignment", 50, "Alignment failed: no words aligned")
+            else:
+                transcript_data["alignment"] = {"enabled": False, "error": alignment_result.get("error")}
+                logger.warning(f"Alignment failed: {alignment_result.get('error')}")
+                send_progress_sync(task_id, "alignment", 50, f"Alignment failed: {alignment_result.get('error')}")
+            
+            # Run TorchCrepe pitch extraction
+            send_progress_sync(task_id, "pitch", 55, "Loading TorchCrepe model...")
+            
+            from services.pitch_service import get_pitch_service
+            pitch_svc = get_pitch_service()
+            
+            send_progress_sync(task_id, "pitch", 60, "Extracting pitch (F0)...")
+            
+            def pitch_progress(pct, msg):
+                overall_pct = 60 + int(pct * 0.35)
+                send_progress_sync(task_id, "pitch", overall_pct, msg)
+            
+            pitch_result = pitch_svc.extract_pitch(media_path, progress_callback=pitch_progress)
+            
+            if pitch_result.get("success"):
+                transcript_data["pitch"] = {
+                    "enabled": True,
+                    "hop_length_ms": pitch_result.get("hop_length_ms", 10.0),
+                    "sample_rate": pitch_result.get("sample_rate", 16000),
+                    "fmin": pitch_result.get("fmin", 50.0),
+                    "fmax": pitch_result.get("fmax", 550.0),
+                    "f0": pitch_result.get("f0", []),
+                    "periodicity": pitch_result.get("periodicity", []),
+                    "times": pitch_result.get("times", [])
+                }
+                logger.info(f"Pitch extraction complete: {len(pitch_result.get('f0', []))} frames")
+                send_progress_sync(task_id, "pitch", 95, f"Extracted {len(pitch_result.get('f0', []))} pitch frames")
+            else:
+                transcript_data["pitch"] = {"enabled": False, "error": pitch_result.get("error")}
+                logger.warning(f"Pitch extraction failed: {pitch_result.get('error')}")
+                send_progress_sync(task_id, "pitch", 95, f"Pitch extraction failed: {pitch_result.get('error')}")
+            
+            # Save updated transcript
+            with open(transcript_json_path, 'w', encoding='utf-8') as f:
+                json.dump(transcript_data, f, ensure_ascii=False, indent=2)
+            
+            # Only mark as completed if alignment succeeded
+            if alignment_success:
+                send_progress_sync(task_id, "completed", 100, "Alignment and pitch extraction completed", status="completed")
+            else:
+                send_progress_sync(task_id, "error", 100, "Alignment failed - check logs for details", status="failed")
+            
+        except Exception as e:
+            logger.error(f"Alignment re-annotation error: {e}")
+            import traceback
+            traceback.print_exc()
+            send_progress_sync(task_id, "error", 0, f"Error: {str(e)}", status="failed")
+    
+    background_tasks.add_task(run_alignment)
+    
+    return {
+        "success": True,
+        "task_id": task_id,
+        "message": "Alignment re-annotation started"
+    }
+
+
 @router.post("/factory-reset")
 async def factory_reset(data: dict):
     """

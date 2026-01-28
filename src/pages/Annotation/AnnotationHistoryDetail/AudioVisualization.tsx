@@ -1,94 +1,121 @@
 /**
- * AnnotationVisualization - 文本标注可视化组件
+ * AudioVisualization - 音频标注可视化组件
  * 
  * 功能：
- * - 使用 D3.js 实现美观的交互式图表
- * - 柱状图/饼图/词云图切换
- * - 标签统计
- * - 支持导出 PNG/SVG
+ * - 波形可视化（时间轴视图）
+ * - 柱状图/饼图统计（标签分布）
+ * - 支持导出 SVG 和 PNG
  */
 
-import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
+import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import {
   Box,
   Stack,
-  ToggleButton,
-  ToggleButtonGroup,
   Typography,
   Alert,
   IconButton,
   Tooltip,
   Divider,
+  ToggleButton,
+  ToggleButtonGroup,
   useTheme
 } from '@mui/material'
-import BarChartIcon from '@mui/icons-material/BarChart'
-import PieChartOutlineIcon from '@mui/icons-material/PieChartOutline'
 import SaveAltIcon from '@mui/icons-material/SaveAlt'
 import ImageIcon from '@mui/icons-material/Image'
+import ZoomInIcon from '@mui/icons-material/ZoomIn'
+import ZoomOutIcon from '@mui/icons-material/ZoomOut'
+import BarChartIcon from '@mui/icons-material/BarChart'
+import PieChartOutlineIcon from '@mui/icons-material/PieChartOutline'
+import TimelineIcon from '@mui/icons-material/Timeline'
 import { useTranslation } from 'react-i18next'
 import * as d3 from 'd3'
-import html2canvas from 'html2canvas'
-import type { Annotation } from '../../../types'
+import type { Annotation, TranscriptSegment, AudioBox, PitchDataArchive } from '../../../types'
 
-interface AnnotationVisualizationProps {
+interface AudioVisualizationProps {
   annotations: Annotation[]
+  transcriptSegments: TranscriptSegment[]
+  duration: number
+  audioUrl?: string
+  audioBoxes?: AudioBox[]
+  pitchData?: PitchDataArchive
+  audioVisualizationSvg?: string  // 保存时生成的 SVG
 }
 
-// 美观的颜色调色板 - 更鲜艳的渐变色
+// 美观的颜色调色板
 const COLORS = [
   '#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de',
   '#3ba272', '#fc8452', '#9a60b4', '#ea7ccc', '#48b8d0',
   '#6f5ef9', '#89ca7e', '#f5a623', '#d0648a', '#22c3aa'
 ]
 
-type ChartType = 'bar' | 'pie'
+type ChartType = 'waveform' | 'bar' | 'pie'
 
-export default function AnnotationVisualization({ annotations }: AnnotationVisualizationProps) {
+export default function AudioVisualization({ 
+  annotations, 
+  transcriptSegments,
+  duration,
+  audioBoxes = [],
+  pitchData,
+  audioVisualizationSvg
+}: AudioVisualizationProps) {
   const { t } = useTranslation()
   const theme = useTheme()
   const isDarkMode = theme.palette.mode === 'dark'
   
   // 主题相关颜色
   const themeColors = {
+    background: isDarkMode ? '#1e1e1e' : '#ffffff',
     text: isDarkMode ? '#e0e0e0' : '#333',
     subText: isDarkMode ? '#aaa' : '#666',
-    axisText: isDarkMode ? '#bbb' : '#555',
-    axisLine: isDarkMode ? '#555' : '#ccc',
-    background: isDarkMode ? '#1e1e1e' : '#ffffff',
-    tooltipBg: isDarkMode ? 'rgba(30, 30, 30, 0.98)' : 'rgba(255, 255, 255, 0.98)',
     border: isDarkMode ? '#444' : '#e0e0e0',
+    scrollbarThumb: isDarkMode ? '#666' : 'grey.400',
+    tooltipBg: isDarkMode ? 'rgba(30, 30, 30, 0.98)' : 'rgba(255, 255, 255, 0.98)',
+    cardBg: isDarkMode ? '#2a2a2a' : 'white',
   }
   
-  const [chartType, setChartType] = useState<ChartType>('bar')
-  const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const svgContainerRef = useRef<HTMLDivElement>(null)
+  const chartSvgRef = useRef<SVGSVGElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
   
-  // 统计标签数量
+  const [chartType, setChartType] = useState<ChartType>('waveform')
+  const [zoom, setZoom] = useState(100) // 缩放百分比
+  const minZoom = 100 // 最小缩放 100%（原大小）
+  
+  // 过滤出文本标注（排除视频和音频画框类型）
+  const textAnnotations = annotations.filter(a => a.type !== 'video' && a.type !== 'audio')
+  
+  // 统计标签数量（基于 audioBoxes）
   const labelStats = useMemo(() => {
-    const counts: Record<string, { count: number; color: string }> = {}
+    const counts: Record<string, { count: number; color: string; totalDuration: number }> = {}
     
-    annotations.forEach(ann => {
-      if (!counts[ann.label]) {
-        counts[ann.label] = { count: 0, color: ann.color || COLORS[Object.keys(counts).length % COLORS.length] }
+    audioBoxes.forEach(box => {
+      if (!counts[box.label]) {
+        counts[box.label] = { 
+          count: 0, 
+          color: box.color || COLORS[Object.keys(counts).length % COLORS.length],
+          totalDuration: 0
+        }
       }
-      counts[ann.label].count++
+      counts[box.label].count++
+      counts[box.label].totalDuration += (box.endTime - box.startTime)
     })
     
     return Object.entries(counts)
       .map(([label, data]) => ({
         name: label,
         value: data.count,
-        color: data.color
+        color: data.color,
+        totalDuration: data.totalDuration
       }))
       .sort((a, b) => b.value - a.value)
-  }, [annotations])
+  }, [audioBoxes])
   
   // 绘制柱状图
   const drawBarChart = useCallback(() => {
-    if (!svgRef.current || labelStats.length === 0) return
+    if (!chartSvgRef.current || labelStats.length === 0) return
     
-    const svg = d3.select(svgRef.current)
+    const svg = d3.select(chartSvgRef.current)
     svg.selectAll('*').remove()
     
     const width = 700
@@ -122,7 +149,7 @@ export default function AnnotationVisualization({ annotations }: AnnotationVisua
         .tickSize(-innerWidth)
         .tickFormat(() => ''))
       .selectAll('line')
-      .attr('stroke', isDarkMode ? '#444' : '#e5e5e5')
+      .attr('stroke', '#e5e5e5')
       .attr('stroke-dasharray', '3,3')
     g.selectAll('.grid .domain').remove()
     
@@ -137,7 +164,7 @@ export default function AnnotationVisualization({ annotations }: AnnotationVisua
       .attr('dx', '-0.5em')
       .attr('dy', '0.5em')
       .attr('font-size', 11)
-      .attr('fill', themeColors.axisText)
+      .attr('fill', '#555')
       .each(function(d) {
         const text = d3.select(this)
         const label = d as string
@@ -146,7 +173,7 @@ export default function AnnotationVisualization({ annotations }: AnnotationVisua
         }
       })
     
-    xAxis.selectAll('line, path').attr('stroke', themeColors.axisLine)
+    xAxis.selectAll('line, path').attr('stroke', '#ccc')
     
     // Y轴
     const yAxis = g.append('g')
@@ -154,9 +181,9 @@ export default function AnnotationVisualization({ annotations }: AnnotationVisua
     
     yAxis.selectAll('text')
       .attr('font-size', 11)
-      .attr('fill', themeColors.axisText)
+      .attr('fill', '#555')
     
-    yAxis.selectAll('line, path').attr('stroke', themeColors.axisLine)
+    yAxis.selectAll('line, path').attr('stroke', '#ccc')
     
     // Y轴标签
     g.append('text')
@@ -193,7 +220,8 @@ export default function AnnotationVisualization({ annotations }: AnnotationVisua
               ${d.name}
             </div>
             <div>${t('annotation.count', '数量')}: <strong>${d.value}</strong></div>
-            <div>${t('annotation.percentage', '占比')}: <strong>${(d.value / annotations.length * 100).toFixed(1)}%</strong></div>
+            <div>${t('annotation.percentage', '占比')}: <strong>${(d.value / audioBoxes.length * 100).toFixed(1)}%</strong></div>
+            <div>${t('annotation.totalDuration', '总时长')}: <strong>${d.totalDuration.toFixed(2)}s</strong></div>
           `
           tooltipRef.current.style.display = 'block'
           tooltipRef.current.style.left = `${event.pageX + 15}px`
@@ -231,16 +259,16 @@ export default function AnnotationVisualization({ annotations }: AnnotationVisua
       .attr('fill', themeColors.text)
       .attr('font-size', 14)
       .attr('font-weight', 600)
-      .text(t('annotation.labelStatistics', '标签统计'))
+      .text(t('annotation.audioLabelStatistics', '音频标注统计'))
     
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [labelStats, annotations.length, t, isDarkMode])
+  }, [labelStats, audioBoxes.length, t, isDarkMode])
   
   // 绘制饼图
   const drawPieChart = useCallback(() => {
-    if (!svgRef.current || labelStats.length === 0) return
+    if (!chartSvgRef.current || labelStats.length === 0) return
     
-    const svg = d3.select(svgRef.current)
+    const svg = d3.select(chartSvgRef.current)
     svg.selectAll('*').remove()
     
     const width = 700
@@ -260,7 +288,7 @@ export default function AnnotationVisualization({ annotations }: AnnotationVisua
       .attr('fill', themeColors.text)
       .attr('font-size', 14)
       .attr('font-weight', 600)
-      .text(t('annotation.labelStatistics', '标签统计'))
+      .text(t('annotation.audioLabelStatistics', '音频标注统计'))
     
     const g = svg.append('g')
       .attr('transform', `translate(${width * 0.35}, ${height / 2 + 10})`)
@@ -307,6 +335,7 @@ export default function AnnotationVisualization({ annotations }: AnnotationVisua
             </div>
             <div>${t('annotation.count', '数量')}: <strong>${d.data.value}</strong></div>
             <div>${t('annotation.percentage', '占比')}: <strong>${percentage}%</strong></div>
+            <div>${t('annotation.totalDuration', '总时长')}: <strong>${d.data.totalDuration.toFixed(2)}s</strong></div>
           `
           tooltipRef.current.style.display = 'block'
           tooltipRef.current.style.left = `${event.pageX + 15}px`
@@ -351,7 +380,7 @@ export default function AnnotationVisualization({ annotations }: AnnotationVisua
       .attr('fill', themeColors.text)
       .attr('font-size', 28)
       .attr('font-weight', 700)
-      .text(annotations.length)
+      .text(audioBoxes.length)
     
     centerGroup.append('text')
       .attr('y', 15)
@@ -402,13 +431,13 @@ export default function AnnotationVisualization({ annotations }: AnnotationVisua
       legendG.append('text')
         .attr('x', 0)
         .attr('y', 12 * legendSpacing + 10)
-        .attr('fill', themeColors.subText)
+        .attr('fill', '#999')
         .attr('font-size', 11)
         .text(`+${labelStats.length - 12} more...`)
     }
     
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [labelStats, annotations.length, t, isDarkMode])
+  }, [labelStats, audioBoxes.length, t, isDarkMode])
   
   // 根据图表类型绘制
   useEffect(() => {
@@ -419,83 +448,87 @@ export default function AnnotationVisualization({ annotations }: AnnotationVisua
     }
   }, [chartType, drawBarChart, drawPieChart])
   
-  // 导出 SVG
-  const handleExportSvg = () => {
-    if (!svgRef.current) return
-
-    const svgElement = svgRef.current
-    
-    // 克隆 SVG 以保留所有内容（包括标题、图例、标签等）
-    const svgClone = svgElement.cloneNode(true) as SVGSVGElement
-    
-    // 获取 SVG 的 viewBox 和尺寸，保持原样
-    const viewBox = svgElement.getAttribute('viewBox')
-    const width = svgElement.getAttribute('width') || svgElement.clientWidth
-    const height = svgElement.getAttribute('height') || svgElement.clientHeight
-    
-    // 确保克隆的 SVG 有正确的尺寸
-    if (viewBox) {
-      svgClone.setAttribute('viewBox', viewBox)
+  // 处理滚轮缩放（仅波形视图）
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (chartType !== 'waveform') return
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault()
+      const delta = e.deltaY > 0 ? -10 : 10
+      setZoom(prev => Math.max(minZoom, Math.min(400, prev + delta)))
     }
-    svgClone.setAttribute('width', String(width))
-    svgClone.setAttribute('height', String(height))
+  }, [chartType, minZoom])
+  
+  // 缩放控制
+  const handleZoomIn = () => setZoom(prev => Math.min(400, prev + 25))
+  const handleZoomOut = () => setZoom(prev => Math.max(minZoom, prev - 25))
+  
+  // 导出 SVG（波形）
+  const handleExportWaveformSVG = useCallback(() => {
+    if (!audioVisualizationSvg) return
     
-    // 添加白色背景作为第一个元素
-    const viewBoxValues = viewBox ? viewBox.split(' ').map(Number) : [0, 0, Number(width), Number(height)]
-    const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
-    bgRect.setAttribute('x', String(viewBoxValues[0]))
-    bgRect.setAttribute('y', String(viewBoxValues[1]))
-    bgRect.setAttribute('width', String(viewBoxValues[2]))
-    bgRect.setAttribute('height', String(viewBoxValues[3]))
-    bgRect.setAttribute('fill', '#ffffff')
-    svgClone.insertBefore(bgRect, svgClone.firstChild)
-    
-    // 序列化克隆的 SVG
-    const svgData = new XMLSerializer().serializeToString(svgClone)
-    const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' })
+    const blob = new Blob([audioVisualizationSvg], { type: 'image/svg+xml' })
     const url = URL.createObjectURL(blob)
-    
     const link = document.createElement('a')
     link.href = url
-    link.download = `annotation_${chartType}_chart.svg`
+    link.download = `audio_waveform_${Date.now()}.svg`
+    document.body.appendChild(link)
     link.click()
+    document.body.removeChild(link)
     URL.revokeObjectURL(url)
-  }
+  }, [audioVisualizationSvg])
   
-  // 导出 PNG
-  const handleExportPng = async () => {
-    if (!svgRef.current) return
-
+  // 导出 PNG（波形）
+  const handleExportWaveformPNG = useCallback(async () => {
+    if (!audioVisualizationSvg) return
+    
     try {
-      const svgElement = svgRef.current
+      const widthMatch = audioVisualizationSvg.match(/width="(\d+)"/)
+      const heightMatch = audioVisualizationSvg.match(/height="(\d+)"/)
+      const svgWidth = widthMatch ? parseInt(widthMatch[1], 10) : 1000
+      const svgHeight = heightMatch ? parseInt(heightMatch[1], 10) : 400
       
-      // 克隆 SVG 以保留所有内容（包括标题、图例、标签等）
-      const svgClone = svgElement.cloneNode(true) as SVGSVGElement
+      const canvas = document.createElement('canvas')
+      const scale = 2
+      canvas.width = svgWidth * scale
+      canvas.height = svgHeight * scale
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
       
-      // 获取 SVG 的 viewBox 和尺寸，保持原样
-      const viewBox = svgElement.getAttribute('viewBox')
-      const widthAttr = svgElement.getAttribute('width')
-      const heightAttr = svgElement.getAttribute('height')
+      ctx.scale(scale, scale)
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, svgWidth, svgHeight)
       
-      let width: number, height: number
-      if (viewBox) {
-        const viewBoxValues = viewBox.split(' ').map(Number)
-        width = viewBoxValues[2]
-        height = viewBoxValues[3]
-      } else {
-        width = widthAttr ? parseFloat(widthAttr) : svgElement.clientWidth
-        height = heightAttr ? parseFloat(heightAttr) : svgElement.clientHeight
+      const img = new Image()
+      const svgBlob = new Blob([audioVisualizationSvg], { type: 'image/svg+xml;charset=utf-8' })
+      const url = URL.createObjectURL(svgBlob)
+      
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, svgWidth, svgHeight)
+        URL.revokeObjectURL(url)
+        
+        const link = document.createElement('a')
+        link.href = canvas.toDataURL('image/png')
+        link.download = `audio_waveform_${Date.now()}.png`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
       }
       
-      // 确保克隆的 SVG 有正确的尺寸
-      if (viewBox) {
-        svgClone.setAttribute('viewBox', viewBox)
-      }
-      svgClone.setAttribute('width', String(width))
-      svgClone.setAttribute('height', String(height))
-      
-      // 添加白色背景作为第一个元素
-      const viewBoxValues = viewBox ? viewBox.split(' ').map(Number) : [0, 0, width, height]
+      img.src = url
+    } catch (err) {
+      console.error('Failed to export PNG:', err)
+    }
+  }, [audioVisualizationSvg])
+  
+  // 导出图表 SVG
+  const handleExportChartSVG = useCallback(() => {
+    if (!chartSvgRef.current) return
+    
+    const svgClone = chartSvgRef.current.cloneNode(true) as SVGSVGElement
+    const viewBox = chartSvgRef.current.getAttribute('viewBox')
+    
+    if (viewBox) {
+      const viewBoxValues = viewBox.split(' ').map(Number)
       const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
       bgRect.setAttribute('x', String(viewBoxValues[0]))
       bgRect.setAttribute('y', String(viewBoxValues[1]))
@@ -503,14 +536,50 @@ export default function AnnotationVisualization({ annotations }: AnnotationVisua
       bgRect.setAttribute('height', String(viewBoxValues[3]))
       bgRect.setAttribute('fill', '#ffffff')
       svgClone.insertBefore(bgRect, svgClone.firstChild)
+    }
+    
+    const svgData = new XMLSerializer().serializeToString(svgClone)
+    const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `audio_${chartType}_chart.svg`
+    link.click()
+    URL.revokeObjectURL(url)
+  }, [chartType])
+  
+  // 导出图表 PNG
+  const handleExportChartPNG = useCallback(async () => {
+    if (!chartSvgRef.current) return
+    
+    try {
+      const svgElement = chartSvgRef.current
+      const svgClone = svgElement.cloneNode(true) as SVGSVGElement
+      const viewBox = svgElement.getAttribute('viewBox')
       
-      // 转换为 data URL
-      const serializer = new XMLSerializer()
-      const svgString = serializer.serializeToString(svgClone)
+      let width = 700, height = 450
+      if (viewBox) {
+        const viewBoxValues = viewBox.split(' ').map(Number)
+        width = viewBoxValues[2]
+        height = viewBoxValues[3]
+        
+        const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
+        bgRect.setAttribute('x', String(viewBoxValues[0]))
+        bgRect.setAttribute('y', String(viewBoxValues[1]))
+        bgRect.setAttribute('width', String(viewBoxValues[2]))
+        bgRect.setAttribute('height', String(viewBoxValues[3]))
+        bgRect.setAttribute('fill', '#ffffff')
+        svgClone.insertBefore(bgRect, svgClone.firstChild)
+      }
+      
+      svgClone.setAttribute('width', String(width))
+      svgClone.setAttribute('height', String(height))
+      
+      const svgString = new XMLSerializer().serializeToString(svgClone)
       const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
       const svgUrl = URL.createObjectURL(svgBlob)
       
-      // 创建图片和画布，高分辨率
       const img = new Image()
       img.onload = () => {
         const scale = 3
@@ -523,11 +592,9 @@ export default function AnnotationVisualization({ annotations }: AnnotationVisua
           return
         }
         
-        // 设置高分辨率渲染
         ctx.scale(scale, scale)
         ctx.drawImage(img, 0, 0)
         
-        // 转换为 PNG
         canvas.toBlob((blob) => {
           if (!blob) {
             URL.revokeObjectURL(svgUrl)
@@ -537,7 +604,7 @@ export default function AnnotationVisualization({ annotations }: AnnotationVisua
           const url = URL.createObjectURL(blob)
           const link = document.createElement('a')
           link.href = url
-          link.download = `annotation_${chartType}_chart.png`
+          link.download = `audio_${chartType}_chart.png`
           link.click()
           
           URL.revokeObjectURL(url)
@@ -545,27 +612,26 @@ export default function AnnotationVisualization({ annotations }: AnnotationVisua
         }, 'image/png')
       }
       
-      img.onerror = () => {
-        URL.revokeObjectURL(svgUrl)
-        console.error('Failed to load SVG image')
-      }
-      
       img.src = svgUrl
     } catch (error) {
       console.error('Export PNG failed:', error)
     }
-  }
+  }, [chartType])
   
-  if (annotations.length === 0) {
+  // 检查是否有数据
+  const hasData = transcriptSegments.length > 0 || audioBoxes.length > 0 || textAnnotations.length > 0
+  const hasSvg = !!audioVisualizationSvg
+  
+  if (!hasData && !hasSvg) {
     return (
       <Alert severity="info">
-        {t('annotation.noVisualizationData', '无数据可视化')}
+        {t('annotation.noAudioVisualizationData', '暂无音频标注数据可视化')}
       </Alert>
     )
   }
   
   return (
-    <Box>
+    <Box ref={containerRef}>
       {/* Tooltip */}
       <div
         ref={tooltipRef}
@@ -588,23 +654,29 @@ export default function AnnotationVisualization({ annotations }: AnnotationVisua
       />
       
       {/* 工具栏 */}
-      <Stack direction="row" spacing={2} sx={{ mb: 2 }} alignItems="center" justifyContent="space-between">
+      <Stack 
+        direction="row" 
+        spacing={2}
+        alignItems="center" 
+        justifyContent="space-between"
+        sx={{ mb: 2 }}
+      >
         <Stack direction="row" spacing={2} alignItems="center">
-          <Typography variant="subtitle2" color="text.secondary">
-            {t('annotation.labelStatistics', '标签统计')}
-          </Typography>
-          
           <ToggleButtonGroup
             value={chartType}
             exclusive
             onChange={(_, value) => value && setChartType(value)}
             size="small"
           >
-            <ToggleButton value="bar">
+            <ToggleButton value="waveform" disabled={!hasSvg}>
+              <TimelineIcon sx={{ mr: 0.5 }} fontSize="small" />
+              {t('annotation.waveform', '波形图')}
+            </ToggleButton>
+            <ToggleButton value="bar" disabled={audioBoxes.length === 0}>
               <BarChartIcon sx={{ mr: 0.5 }} fontSize="small" />
               {t('annotation.barChart', '柱状图')}
             </ToggleButton>
-            <ToggleButton value="pie">
+            <ToggleButton value="pie" disabled={audioBoxes.length === 0}>
               <PieChartOutlineIcon sx={{ mr: 0.5 }} fontSize="small" />
               {t('annotation.pieChart', '饼图')}
             </ToggleButton>
@@ -612,84 +684,163 @@ export default function AnnotationVisualization({ annotations }: AnnotationVisua
         </Stack>
         
         <Stack direction="row" spacing={0.5} alignItems="center">
+          {/* 缩放控制（仅波形视图） */}
+          {chartType === 'waveform' && (
+            <>
+              <Tooltip title={t('annotation.zoomOut', '缩小')}>
+                <IconButton size="small" onClick={handleZoomOut} disabled={zoom <= minZoom}>
+                  <ZoomOutIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Typography variant="body2" color="text.secondary" sx={{ minWidth: 45, textAlign: 'center' }}>
+                {zoom}%
+              </Typography>
+              <Tooltip title={t('annotation.zoomIn', '放大')}>
+                <IconButton size="small" onClick={handleZoomIn} disabled={zoom >= 400}>
+                  <ZoomInIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </>
+          )}
+          
           <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+          
+          {/* 导出按钮 */}
           <Tooltip title={t('annotation.exportSvg', '导出 SVG')}>
-            <IconButton size="small" onClick={handleExportSvg}>
+            <IconButton 
+              size="small" 
+              onClick={chartType === 'waveform' ? handleExportWaveformSVG : handleExportChartSVG}
+              disabled={chartType === 'waveform' && !hasSvg}
+            >
               <SaveAltIcon fontSize="small" />
             </IconButton>
           </Tooltip>
           <Tooltip title={t('annotation.exportPng', '导出 PNG')}>
-            <IconButton size="small" onClick={handleExportPng}>
+            <IconButton 
+              size="small" 
+              onClick={chartType === 'waveform' ? handleExportWaveformPNG : handleExportChartPNG}
+              disabled={chartType === 'waveform' && !hasSvg}
+            >
               <ImageIcon fontSize="small" />
             </IconButton>
           </Tooltip>
         </Stack>
       </Stack>
       
-      {/* 图表容器 */}
-      <Box 
-        ref={containerRef} 
-        sx={{ 
-          border: 1, 
-          borderColor: 'divider', 
-          borderRadius: 2,
-          maxHeight: 500,
-          overflow: 'auto'
-        }}
-      >
-        <Box sx={{ p: 2, width: '100%', display: 'flex', justifyContent: 'center' }}>
-          <svg
-            ref={svgRef}
-            style={{ 
-              width: '100%', 
-              maxWidth: 700,
-              height: chartType === 'bar' ? 400 : 450
-            }}
-          />
-        </Box>
-      </Box>
+      {/* 波形视图 */}
+      {chartType === 'waveform' && (
+        <>
+          {hasSvg ? (
+            <Box
+              sx={{
+                border: '1px solid',
+                borderColor: 'divider',
+                borderRadius: 1,
+                overflow: 'auto',
+                maxHeight: 500,
+                bgcolor: themeColors.cardBg,
+                '&::-webkit-scrollbar': { height: 10, width: 10 },
+                '&::-webkit-scrollbar-thumb': { bgcolor: themeColors.scrollbarThumb, borderRadius: 5 }
+              }}
+              onWheel={handleWheel}
+            >
+              <Box
+                ref={svgContainerRef}
+                sx={{
+                  transform: `scale(${zoom / 100})`,
+                  transformOrigin: 'top left',
+                  transition: 'transform 0.1s ease-out',
+                  '& svg': { display: 'block' }
+                }}
+                dangerouslySetInnerHTML={{ __html: audioVisualizationSvg }}
+              />
+            </Box>
+          ) : (
+            <Alert severity="warning">
+              {t('annotation.noSavedVisualization', '此存档没有保存可视化数据。请重新保存存档以生成可视化。')}
+            </Alert>
+          )}
+        </>
+      )}
+      
+      {/* 柱状图/饼图视图 */}
+      {(chartType === 'bar' || chartType === 'pie') && (
+        <>
+          {labelStats.length > 0 ? (
+            <Box 
+              sx={{ 
+                border: 1, 
+                borderColor: 'divider', 
+                borderRadius: 2,
+                maxHeight: 500,
+                overflow: 'auto'
+              }}
+            >
+              <Box sx={{ p: 2, width: '100%', display: 'flex', justifyContent: 'center' }}>
+                <svg
+                  ref={chartSvgRef}
+                  style={{ 
+                    width: '100%', 
+                    maxWidth: 700,
+                    height: chartType === 'bar' ? 400 : 450
+                  }}
+                />
+              </Box>
+            </Box>
+          ) : (
+            <Alert severity="info">
+              {t('annotation.noAudioBoxData', '暂无音频画框数据，无法生成统计图表')}
+            </Alert>
+          )}
+        </>
+      )}
       
       {/* 统计摘要 */}
       <Box sx={{ mt: 2 }}>
-        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-          {t('common.all', '共')} {annotations.length} {t('common.items', '条')} | 
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          {t('annotation.audioBox', '画框')}: {audioBoxes.length} | 
           {' '}{labelStats.length} {t('annotation.labelTypes', '种标签')}
+          {duration > 0 && (
+            <> | {t('annotation.duration', '时长')}: {Math.floor(duration / 60)}:{String(Math.floor(duration % 60)).padStart(2, '0')}</>
+          )}
         </Typography>
         
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-          {labelStats.slice(0, 10).map((stat) => (
-            <Box
-              key={stat.name}
-              sx={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                px: 1,
-                py: 0.5,
-                borderRadius: 1,
-                bgcolor: `${stat.color}15`,
-                border: `1px solid ${stat.color}30`
-              }}
-            >
+        {labelStats.length > 0 && (
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            {labelStats.slice(0, 10).map((stat) => (
               <Box
+                key={stat.name}
                 sx={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  bgcolor: stat.color,
-                  mr: 0.5
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  px: 1,
+                  py: 0.5,
+                  borderRadius: 1,
+                  bgcolor: `${stat.color}15`,
+                  border: `1px solid ${stat.color}30`
                 }}
-              />
-              <Typography variant="caption" sx={{ color: stat.color, fontWeight: 500 }}>
-                {stat.name}: {stat.value}
+              >
+                <Box
+                  sx={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    bgcolor: stat.color,
+                    mr: 0.5
+                  }}
+                />
+                <Typography variant="caption" sx={{ color: stat.color, fontWeight: 500 }}>
+                  {stat.name}: {stat.value}
+                </Typography>
+              </Box>
+            ))}
+            {labelStats.length > 10 && (
+              <Typography variant="caption" color="text.secondary">
+                +{labelStats.length - 10} more
               </Typography>
-            </Box>
-          ))}
-          {labelStats.length > 10 && (
-            <Typography variant="caption" color="text.secondary">
-              +{labelStats.length - 10} more
-            </Typography>
-          )}
-        </Stack>
+            )}
+          </Stack>
+        )}
       </Box>
     </Box>
   )

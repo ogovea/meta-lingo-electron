@@ -7,7 +7,7 @@
 
 import { useRef, useCallback } from 'react'
 import * as d3 from 'd3'
-import { Box, Typography } from '@mui/material'
+import { Box, Typography, useTheme } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 import D3Container from './D3Container'
 import { useTooltip, getTopicColor, truncateText } from './useD3'
@@ -33,6 +33,8 @@ interface TopicWordBarsProps {
 
 export default function TopicWordBars({ data, height = 600, nWords = 5, scoreType = 'ctfidf' }: TopicWordBarsProps) {
   const { t } = useTranslation()
+  const theme = useTheme()
+  const isDarkMode = theme.palette.mode === 'dark'
   const svgRef = useRef<SVGSVGElement>(null)
   const tooltip = useTooltip()
 
@@ -40,6 +42,17 @@ export default function TopicWordBars({ data, height = 600, nWords = 5, scoreTyp
     if (!svgRef.current || !data || data.length === 0) return
 
     const { width, height: h } = dimensions
+    
+    // Theme colors
+    const colors = {
+      title: isDarkMode ? '#e0e0e0' : '#2c3e50',
+      subtitle: isDarkMode ? '#999' : '#666',
+      cellBorder: isDarkMode ? '#444' : '#eee',
+      wordLabel: isDarkMode ? '#ccc' : '#444',
+      valueLabel: isDarkMode ? '#999' : '#666',
+      tooltipText: isDarkMode ? '#aaa' : '#555',
+      tooltipBold: isDarkMode ? '#e0e0e0' : '#333'
+    }
     
     // Calculate grid layout - Plotly style
     const numTopics = data.length
@@ -63,7 +76,7 @@ export default function TopicWordBars({ data, height = 600, nWords = 5, scoreTyp
       .attr('text-anchor', 'middle')
       .attr('font-size', '18px')
       .attr('font-weight', 'bold')
-      .attr('fill', '#2c3e50')
+      .attr('fill', colors.title)
       .text(t('topicModeling.visualization.barchart'))
 
     const subtitleText = scoreType === 'weight' 
@@ -75,7 +88,7 @@ export default function TopicWordBars({ data, height = 600, nWords = 5, scoreTyp
       .attr('y', 48)
       .attr('text-anchor', 'middle')
       .attr('font-size', '12px')
-      .attr('fill', '#666')
+      .attr('fill', colors.subtitle)
       .text(subtitleText)
 
     // Main group
@@ -100,7 +113,7 @@ export default function TopicWordBars({ data, height = 600, nWords = 5, scoreTyp
         .attr('height', cellHeight)
         .attr('rx', 4)
         .attr('fill', 'transparent')
-        .attr('stroke', '#eee')
+        .attr('stroke', colors.cellBorder)
         .attr('stroke-width', 1)
 
       // Topic title - at top
@@ -146,7 +159,7 @@ export default function TopicWordBars({ data, height = 600, nWords = 5, scoreTyp
         .attr('text-anchor', 'end')
         .attr('dy', '0.35em')
         .attr('font-size', '10px')
-        .attr('fill', '#444')
+        .attr('fill', colors.wordLabel)
         .text(d => truncateText(d.word, 10))
 
       // Bars - solid color, Plotly style
@@ -179,7 +192,7 @@ export default function TopicWordBars({ data, height = 600, nWords = 5, scoreTyp
         .attr('y', d => (yScale(d.word) || 0) + yScale.bandwidth() / 2)
         .attr('dy', '0.35em')
         .attr('font-size', '9px')
-        .attr('fill', '#666')
+        .attr('fill', colors.valueLabel)
         .attr('opacity', 0)
         .text(d => scoreType === 'weight' ? `${d.weight.toFixed(1)}%` : d.weight.toFixed(1))
         .transition()
@@ -207,13 +220,13 @@ export default function TopicWordBars({ data, height = 600, nWords = 5, scoreTyp
               <span style="display:inline-block;width:10px;height:10px;background:${color};border-radius:2px;margin-right:8px;"></span>
               <span style="font-weight:bold;color:${color}">${topic.topic_name}</span>
             </div>
-            <div style="color:#555;">
+            <div style="color:${colors.tooltipText};">
               <span style="font-weight:500;">${wordLabel}:</span> 
-              <span style="font-weight:bold;color:#333">${d.word}</span>
+              <span style="font-weight:bold;color:${colors.tooltipBold}">${d.word}</span>
             </div>
-            <div style="color:#555;">
+            <div style="color:${colors.tooltipText};">
               <span style="font-weight:500;">${scoreLabel}:</span> 
-              <span style="font-weight:bold;color:#333">${scoreValue}</span>
+              <span style="font-weight:bold;color:${colors.tooltipBold}">${scoreValue}</span>
             </div>
           `, event)
         })
@@ -229,7 +242,7 @@ export default function TopicWordBars({ data, height = 600, nWords = 5, scoreTyp
         })
     })
 
-  }, [data, t, tooltip, nWords, scoreType])
+  }, [data, t, tooltip, nWords, scoreType, isDarkMode])
 
   if (!data || data.length === 0) {
     return (

@@ -824,6 +824,29 @@ export const corpusApi = {
     }
   },
 
+  // Re-annotate audio with Wav2Vec2 alignment and TorchCrepe pitch extraction (async - returns task_id)
+  reAnnotateAlignment: async (corpusId: string, textId: string): Promise<{
+    success: boolean
+    task_id?: string
+    message?: string
+  }> => {
+    try {
+      const response = await api.post<{ success: boolean; task_id?: string; message?: string }>(
+        `${API_BASE}/${corpusId}/texts/${textId}/reannotate-alignment`
+      )
+      if (response.success && response.data) {
+        const inner = response.data as any
+        if (inner.success !== undefined) {
+          return inner
+        }
+        return { success: true, task_id: inner.task_id }
+      }
+      return { success: false, message: response.error }
+    } catch (error) {
+      return { success: false, message: String(error) }
+    }
+  },
+
   // Get MIPVU annotation for a text
   getMipvuAnnotation: async (corpusId: string, textId: string): Promise<{
     success: boolean

@@ -106,31 +106,41 @@ export function useTooltip() {
   ) => {
     const { offsetX = 10, offsetY = 10 } = options
     
+    // Auto-detect dark mode from document
+    const isDarkMode = document.documentElement.classList.contains('dark') || 
+                       document.body.getAttribute('data-theme') === 'dark' ||
+                       window.matchMedia?.('(prefers-color-scheme: dark)').matches ||
+                       document.querySelector('[class*="MuiCssBaseline"]')?.closest('[class*="dark"]') !== null ||
+                       getComputedStyle(document.body).backgroundColor.includes('rgb(30') ||
+                       getComputedStyle(document.body).backgroundColor.includes('rgb(18')
+    
     if (!tooltipRef.current) {
       tooltipRef.current = document.createElement('div')
       tooltipRef.current.className = 'd3-tooltip'
-      tooltipRef.current.style.cssText = `
-        position: fixed;
-        padding: 10px 14px;
-        background: rgba(255, 255, 255, 0.98);
-        border: 1px solid #e0e0e0;
-        border-radius: 8px;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-        font-size: 13px;
-        line-height: 1.5;
-        pointer-events: none;
-        z-index: 10000;
-        max-width: 320px;
-        opacity: 0;
-        transition: opacity 0.15s ease;
-      `
       document.body.appendChild(tooltipRef.current)
     }
+    
+    // Apply theme-aware styles
+    tooltipRef.current.style.cssText = `
+      position: fixed;
+      padding: 10px 14px;
+      background: ${isDarkMode ? 'rgba(45, 45, 55, 0.98)' : 'rgba(255, 255, 255, 0.98)'};
+      color: ${isDarkMode ? '#e0e0e0' : '#333'};
+      border: 1px solid ${isDarkMode ? '#555' : '#e0e0e0'};
+      border-radius: 8px;
+      box-shadow: ${isDarkMode ? '0 4px 16px rgba(0,0,0,0.4)' : '0 4px 16px rgba(0,0,0,0.15)'};
+      font-size: 13px;
+      line-height: 1.5;
+      pointer-events: none;
+      z-index: 10000;
+      max-width: 320px;
+      opacity: 1;
+      transition: opacity 0.15s ease;
+    `
 
     tooltipRef.current.innerHTML = content
     tooltipRef.current.style.left = `${event.clientX + offsetX}px`
     tooltipRef.current.style.top = `${event.clientY + offsetY}px`
-    tooltipRef.current.style.opacity = '1'
   }, [])
 
   const hide = useCallback(() => {

@@ -1,6 +1,6 @@
 # Meta-Lingo
 
-**版本**: v3.8.95
+**版本**: v3.8.97
 
 现代化多模态语料库研究软件，基于 Electron + React + TypeScript 前端和 Python FastAPI 后端构建。
 
@@ -9,6 +9,13 @@
 - **语料库管理**: 上传和管理多模态语料 (文本、音频、视频)
   - 多模态文件上传 (拖拽上传，批量处理)
   - 使用 Whisper Large V3 Turbo 进行音频转录 (词级时间戳)
+  - **英语音频增强处理** (2026-01-28 新增):
+    - Wav2Vec2 强制对齐 (词级时间戳精确对齐)
+    - TorchCrepe 音高提取 (F0 基频曲线)
+    - Wavesurfer.js 波形可视化
+    - 词级对齐区域显示和点击标注
+    - F0 曲线叠加显示 (可开关)
+    - 拖拽选择时间区域标注
   - 使用 YOLOv8 进行视频对象检测和追踪
   - **使用 CLIP (ViT-Large-Patch14) 进行视频图像语义分类** (2024-12-15/16 更新)
     - 上传时可选启用 CLIP 标注 (默认关闭)
@@ -2047,6 +2054,74 @@ macOS 文件系统会自动生成资源叉文件（以 `._` 或 `.__` 开头）�
 ---
 
 ## 版本更新记录
+
+### v3.8.97 (2026-01-29)
+- **修复**: Theme/Rheme 自动标注美观性问题
+  - Rheme 的 `rheme_start` 位置现在会跳过 Theme 之后的第一个字符（无论是空格还是标点符号）
+  - 继续跳过任何剩余的空白字符
+  - 如果 Rheme 内容只剩1个或更少字符，则不标注 Rheme（避免标注过短内容）
+  - 标注结果更加整洁，Theme 和 Rheme 边界清晰
+- **修复**: 深色主题适配优化
+  - **同义词分析**: 网络图和树形图 D3 可视化适配深色主题 (连线/节点边框/标签/tooltip)
+  - **N-gram 分析**: 网络图和桑基图 D3 可视化适配深色主题 (连线/节点边框/标签/tooltip)
+  - **关键词提取**: 语料库资源选择弹窗搜索栏区域适配深色主题
+  - **词图分析**: 
+    - 搭配词卡片分数 Chip 背景适配深色主题
+    - SketchVisualization 网络图适配深色主题 (连线/节点边框/标签)
+    - DiffVisualization 对比可视化适配深色主题 (节点边框/标签)
+  - **主题建模**: 
+    - LDA/LSA/NMF 文档主题分布表头适配深色主题
+    - LDA 困惑度折线图适配深色主题 (标题/副标题/网格线/图例/容器背景/#1e1e2e/数据点边框/tooltip)
+    - LSA 方差折线图适配深色主题 (标题/副标题/网格线/图例/容器背景/#1e1e2e/SVG背景)
+    - NMF 重构误差折线图适配深色主题 (标题/副标题/网格线/图例/容器背景/#1e1e2e/SVG背景)
+    - LDA/LSA/NMF 可视化面板饼图适配深色主题 (边框/tooltip颜色/useEffect依赖)
+    - LDA/LSA/NMF 优化对话框 DialogContent 背景适配深色主题
+    - useTooltip hook 自动检测深色主题并应用相应样式
+    - LDA/LSA/NMF 可视化图表标题/副标题/图例/坐标轴标签适配深色主题
+    - TopicWordBars (D3) 组件全面适配深色主题
+    - SimilarityHeatmap (D3) 组件全面适配深色主题
+    - 所有 Plotly 可视化组件 (TermRankPlot, TopicHierarchyPlot, IntertopicDistancePlot, TopicWordBarsPlot, TopicEvolutionPlot, DocumentDistributionPlot, TopicSimilarityHeatmapPlot) 强制覆盖标题和坐标轴颜色
+    - BERTopic/LDA/LSA/NMF 主题卡片加粗词颜色适配深色主题 (#333 -> theme.palette.text.primary)
+    - 主题合并对话框表头适配深色主题
+  - **恢复出厂设置**: 确认输入框适配深色主题 (背景/文字/边框/占位符)
+  - **文献可视化**: 
+    - NetworkGraph 网络图适配深色主题 (节点边框/标签)
+    - BurstChart 突增图修复鼠标悬停闪烁问题 (themeColors 使用 useMemo 缓存)
+
+### v3.8.96 (2026-01-28)
+- **新功能**: 英语音频波形标注 (Praat 风格)
+  - **Wav2Vec2 强制对齐**: 使用 `wav2vec2-base-960h` 模型进行词级时间戳对齐
+  - **TorchCrepe 音高提取**: 使用 CREPE full 模型 (~89MB) 提取 F0 基频曲线
+  - **自动处理**: 上传英语音频时自动执行对齐和音高提取（Whisper 转录后）
+  - **Wavesurfer.js 波形**: 使用 Wavesurfer.js 渲染交互式波形图
+  - **词级对齐显示**: 波形上显示词边界区域，颜色反映对齐置信度
+  - **F0 曲线叠加**: 可选显示/隐藏音高曲线，Y 轴范围 50-550Hz
+  - **画框标注**: 在波形上拖拽绘制标注框（类似视频标注）
+  - **词点击标注**: 点击词对齐区域快速添加标注
+  - **中文保持原样**: 非英语音频只能在纯文本标注模式下进行标注
+- **音频标注历史可视化**:
+  - **三标签页设计**: 文本标注列表 / 音频标注列表 / 数据可视化
+  - **SVG 导出**: 保存时生成完整波形+音高+画框的高清 SVG
+  - **柱状图/饼图**: 音频画框标注统计图表（与文本标注一致）
+- **暗色模式适配**:
+  - 波形图、可视化图表、表头全面适配暗色主题
+  - 太阳图、热图、散点图等 D3 可视化适配
+- **编码者间信度限制**:
+  - 仅支持纯文本标注存档，过滤视频/音频存档
+  - 上传 JSON 时验证文件格式，拒绝不合规存档
+- **后端服务**:
+  - `backend/services/alignment_service.py`: Wav2Vec2 CTC 强制对齐服务
+  - `backend/services/pitch_service.py`: TorchCrepe 音高提取服务
+  - `backend/services/whisper_service.py`: 集成英语自动处理流程
+- **前端组件**:
+  - `src/components/Annotation/WavesurferWaveform.tsx`: 波形+对齐+F0+画框组件
+  - `src/components/Annotation/MultimodalWorkspace.tsx`: 集成波形组件
+  - `src/pages/Annotation/AnnotationHistoryDetail/AudioVisualization.tsx`: 音频可视化
+  - `src/pages/Annotation/AnnotationHistoryDetail/AudioAnnotationTable.tsx`: 音频标注表
+- **类型定义**: 新增 `AlignmentData`, `PitchData`, `WordAlignment`, `CharAlignment`, `AudioBox`
+- **模型路径**:
+  - `models/multimodal_analyzer/wav2vec2-base-960h` (~360MB)
+  - `models/multimodal_analyzer/torchcrepe-master/torchcrepe/assets/full.pth` (~89MB)
 
 ### v3.8.95 (2026-01-28)
 - **优化**: 纯文本标注模式支持音视频转录文本的句法可视化

@@ -35,33 +35,95 @@ export default function TermRankPlot({ data, height = 600 }: TermRankPlotProps) 
   }, [height])
 
   const plotlyLayout = useMemo(() => {
+    const isDarkMode = theme.palette.mode === 'dark'
+    const fontColor = isDarkMode ? '#e0e0e0' : theme.palette.text.primary
+    const axisColor = isDarkMode ? '#ccc' : '#666'
+    const gridColor = isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
+    
     if (!data || !data.layout) {
       return {
         autosize: true,
         height,
         paper_bgcolor: 'rgba(0,0,0,0)',
-        plot_bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+        plot_bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
         font: {
-          color: theme.palette.text.primary,
+          color: fontColor,
           family: 'Arial, sans-serif',
           size: 12
         }
       }
     }
 
-    // Merge with theme-aware colors
+    // Handle title - can be string or object
+    let titleConfig = data.layout.title
+    if (typeof titleConfig === 'string') {
+      titleConfig = { text: titleConfig, font: { color: fontColor } }
+    } else if (titleConfig) {
+      titleConfig = { ...titleConfig, font: { ...titleConfig.font, color: fontColor } }
+    }
+
+    // Merge with theme-aware colors - force override title and axis colors
     return {
       ...data.layout,
       autosize: true,
       height,
       paper_bgcolor: 'rgba(0,0,0,0)',
-      plot_bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+      plot_bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
       font: {
         ...data.layout.font,
-        color: theme.palette.text.primary
+        color: fontColor
+      },
+      title: titleConfig,
+      xaxis: {
+        ...data.layout.xaxis,
+        color: axisColor,
+        tickfont: { ...data.layout.xaxis?.tickfont, color: axisColor },
+        titlefont: { ...data.layout.xaxis?.titlefont, color: axisColor },
+        gridcolor: gridColor
+      },
+      yaxis: {
+        ...data.layout.yaxis,
+        color: axisColor,
+        tickfont: { ...data.layout.yaxis?.tickfont, color: axisColor },
+        titlefont: { ...data.layout.yaxis?.titlefont, color: axisColor },
+        gridcolor: gridColor
       }
     }
   }, [data, height, theme])
+
+  // Process data to fix line colors for dark mode
+  const plotlyData = useMemo(() => {
+    if (!data || !data.data) return []
+    
+    const isDarkMode = theme.palette.mode === 'dark'
+    if (!isDarkMode) return data.data
+    
+    // In dark mode, ensure lines are visible by lightening dark colors
+    return data.data.map((trace: any) => {
+      const newTrace = { ...trace }
+      
+      // Fix line color if it's too dark
+      if (trace.line?.color) {
+        const color = trace.line.color
+        // If color is black or very dark, lighten it
+        if (color === 'black' || color === '#000' || color === '#000000' || 
+            color === 'rgb(0,0,0)' || color === 'rgba(0,0,0,1)') {
+          newTrace.line = { ...trace.line, color: '#aaa' }
+        }
+      }
+      
+      // Fix marker color if present
+      if (trace.marker?.color) {
+        const color = trace.marker.color
+        if (color === 'black' || color === '#000' || color === '#000000' ||
+            color === 'rgb(0,0,0)' || color === 'rgba(0,0,0,1)') {
+          newTrace.marker = { ...trace.marker, color: '#aaa' }
+        }
+      }
+      
+      return newTrace
+    })
+  }, [data, theme])
 
   if (!data) {
     return (
@@ -84,7 +146,7 @@ export default function TermRankPlot({ data, height = 600 }: TermRankPlotProps) 
   return (
     <Box sx={{ width: '100%', height }}>
       <Plot
-        data={data.data || []}
+        data={plotlyData}
         layout={plotlyLayout}
         config={plotlyConfig}
         style={{ width: '100%', height: '100%' }}

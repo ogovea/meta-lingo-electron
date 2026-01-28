@@ -7,7 +7,7 @@
 
 import { useRef, useCallback } from 'react'
 import * as d3 from 'd3'
-import { Box, Typography } from '@mui/material'
+import { Box, Typography, useTheme } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 import D3Container from './D3Container'
 import { useTooltip, truncateText } from './useD3'
@@ -34,6 +34,8 @@ const BLUE_COLORS = [
 
 export default function SimilarityHeatmap({ data, height = 600 }: SimilarityHeatmapProps) {
   const { t } = useTranslation()
+  const theme = useTheme()
+  const isDarkMode = theme.palette.mode === 'dark'
   const svgRef = useRef<SVGSVGElement>(null)
   const tooltip = useTooltip()
 
@@ -44,6 +46,20 @@ export default function SimilarityHeatmap({ data, height = 600 }: SimilarityHeat
     const margin = { top: 80, right: 100, bottom: 120, left: 120 }
     const innerWidth = width - margin.left - margin.right
     const innerHeight = h - margin.top - margin.bottom
+    
+    // Theme colors
+    const colors = {
+      title: isDarkMode ? '#e0e0e0' : '#2c3e50',
+      subtitle: isDarkMode ? '#999' : '#666',
+      label: isDarkMode ? '#ccc' : '#444',
+      legendBorder: isDarkMode ? '#555' : '#ddd',
+      legendText: isDarkMode ? '#999' : '#666',
+      legendTitle: isDarkMode ? '#aaa' : '#555',
+      cellHover: isDarkMode ? '#e0e0e0' : '#333',
+      tooltipText: isDarkMode ? '#aaa' : '#555',
+      tooltipBold: isDarkMode ? '#e0e0e0' : '#333',
+      tooltipMuted: isDarkMode ? '#777' : '#888'
+    }
 
     const svg = d3.select(svgRef.current)
     svg.selectAll('*').remove()
@@ -62,7 +78,7 @@ export default function SimilarityHeatmap({ data, height = 600 }: SimilarityHeat
       .attr('text-anchor', 'middle')
       .attr('font-size', '18px')
       .attr('font-weight', 'bold')
-      .attr('fill', '#2c3e50')
+      .attr('fill', colors.title)
       .text(t('topicModeling.visualization.heatmap'))
 
     svg.append('text')
@@ -70,7 +86,7 @@ export default function SimilarityHeatmap({ data, height = 600 }: SimilarityHeat
       .attr('y', 48)
       .attr('text-anchor', 'middle')
       .attr('font-size', '12px')
-      .attr('fill', '#666')
+      .attr('fill', colors.subtitle)
       .text(t('topicModeling.visualization.topicSimilarityMatrix', 'Topic Similarity Matrix'))
 
     // Main group
@@ -137,7 +153,7 @@ export default function SimilarityHeatmap({ data, height = 600 }: SimilarityHeat
     cells
       .on('mouseenter', function(event, d) {
         d3.select(this)
-          .attr('stroke', '#333')
+          .attr('stroke', colors.cellHover)
           .attr('stroke-width', 2)
 
         const rowLabel = labels[d[0]] || `Topic ${d[0]}`
@@ -147,11 +163,11 @@ export default function SimilarityHeatmap({ data, height = 600 }: SimilarityHeat
         const similarityLabel = t('topicModeling.visualization.similarity') || 'Similarity'
         tooltip.show(`
           <div style="margin-bottom:8px;">
-            <span style="font-weight:bold;color:#333">${truncateText(rowLabel, 22)}</span>
-            <span style="color:#888;margin:0 6px;">vs</span>
-            <span style="font-weight:bold;color:#333">${truncateText(colLabel, 22)}</span>
+            <span style="font-weight:bold;color:${colors.tooltipBold}">${truncateText(rowLabel, 22)}</span>
+            <span style="color:${colors.tooltipMuted};margin:0 6px;">vs</span>
+            <span style="font-weight:bold;color:${colors.tooltipBold}">${truncateText(colLabel, 22)}</span>
           </div>
-          <div style="color:#555;">
+          <div style="color:${colors.tooltipText};">
             <span style="font-weight:500;">${similarityLabel}:</span> 
             <span style="font-weight:bold;color:${getColor(value)}">${value.toFixed(4)}</span>
           </div>
@@ -177,7 +193,7 @@ export default function SimilarityHeatmap({ data, height = 600 }: SimilarityHeat
       .attr('text-anchor', 'end')
       .attr('dy', '0.35em')
       .attr('font-size', Math.min(11, cellHeight - 2))
-      .attr('fill', '#444')
+      .attr('fill', colors.label)
       .text(d => truncateText(d, 18))
       .attr('opacity', 0)
       .transition()
@@ -195,7 +211,7 @@ export default function SimilarityHeatmap({ data, height = 600 }: SimilarityHeat
       .attr('text-anchor', 'start')
       .attr('transform', (_, i) => `rotate(45, ${i * cellWidth + cellWidth / 2}, ${innerHeight + 8})`)
       .attr('font-size', Math.min(11, cellWidth - 2))
-      .attr('fill', '#444')
+      .attr('fill', colors.label)
       .text(d => truncateText(d, 18))
       .attr('opacity', 0)
       .transition()
@@ -231,7 +247,7 @@ export default function SimilarityHeatmap({ data, height = 600 }: SimilarityHeat
       .attr('width', legendWidth)
       .attr('height', legendHeight)
       .attr('fill', `url(#${gradientId})`)
-      .attr('stroke', '#ddd')
+      .attr('stroke', colors.legendBorder)
       .attr('stroke-width', 1)
       .attr('rx', 2)
 
@@ -240,7 +256,7 @@ export default function SimilarityHeatmap({ data, height = 600 }: SimilarityHeat
       .attr('x', legendX + legendWidth + 5)
       .attr('y', legendY + legendHeight)
       .attr('font-size', '10px')
-      .attr('fill', '#666')
+      .attr('fill', colors.legendText)
       .attr('dy', '0.35em')
       .text(min_value.toFixed(1))
 
@@ -248,7 +264,7 @@ export default function SimilarityHeatmap({ data, height = 600 }: SimilarityHeat
       .attr('x', legendX + legendWidth + 5)
       .attr('y', legendY)
       .attr('font-size', '10px')
-      .attr('fill', '#666')
+      .attr('fill', colors.legendText)
       .attr('dy', '0.35em')
       .text(max_value.toFixed(1))
 
@@ -258,10 +274,10 @@ export default function SimilarityHeatmap({ data, height = 600 }: SimilarityHeat
       .attr('text-anchor', 'middle')
       .attr('font-size', '10px')
       .attr('font-weight', '500')
-      .attr('fill', '#555')
+      .attr('fill', colors.legendTitle)
       .text(t('topicModeling.visualization.similarity') || 'Similarity')
 
-  }, [data, t, tooltip])
+  }, [data, t, tooltip, isDarkMode])
 
   if (!data || !data.data || data.data.length === 0) {
     return (
@@ -284,7 +300,7 @@ export default function SimilarityHeatmap({ data, height = 600 }: SimilarityHeat
             ref={svgRef}
             width={dimensions.width}
             height={dimensions.height}
-            style={{ background: '#fafafa' }}
+            style={{ background: isDarkMode ? 'transparent' : '#fafafa' }}
           />
         )
       }}

@@ -408,7 +408,7 @@ export default function NMFResultsPanel({
                             <span key={kw.word}>
                               <span style={{ 
                                 fontWeight: index < 3 ? 600 : 400,
-                                color: index < 3 ? '#333' : undefined
+                                color: index < 3 ? theme.palette.text.primary : undefined
                               }}>
                                 {kw.word}
                               </span>
@@ -682,7 +682,7 @@ export default function NMFResultsPanel({
             <TableContainer sx={{ maxHeight: 500 }}>
               <Table size="small" stickyHeader>
                 <TableHead>
-                  <TableRow sx={{ '& th': { bgcolor: 'grey.100', fontWeight: 600 } }}>
+                  <TableRow sx={{ '& th': { bgcolor: theme.palette.mode === 'dark' ? '#1e1e2e' : 'grey.100', fontWeight: 600 } }}>
                     <TableCell>{t('topicModeling.nmf.results.docId', 'Doc')}</TableCell>
                     <TableCell>{t('topicModeling.nmf.results.dominantTopic', 'Dominant Topic')}</TableCell>
                     <TableCell>{t('topicModeling.nmf.results.weight', 'Weight')}</TableCell>

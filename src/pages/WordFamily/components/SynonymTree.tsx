@@ -14,6 +14,7 @@ interface SynonymTreeProps {
   showDefinitions: boolean
   onWordClick: (word: string) => void
   onSvgRef: (ref: SVGSVGElement | null) => void
+  isDarkMode?: boolean
 }
 
 interface TreeNode {
@@ -39,7 +40,8 @@ export default function SynonymTree({
   colorScheme,
   showDefinitions,
   onWordClick,
-  onSvgRef
+  onSvgRef,
+  isDarkMode = false
 }: SynonymTreeProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
@@ -151,7 +153,7 @@ export default function SynonymTree({
       .append('path')
       .attr('class', 'link')
       .attr('fill', 'none')
-      .attr('stroke', '#ccc')
+      .attr('stroke', isDarkMode ? '#555' : '#ccc')
       .attr('stroke-width', 1.5)
       .attr('d', d3.linkHorizontal<d3.HierarchyPointLink<TreeNode>, d3.HierarchyPointNode<TreeNode>>()
         .x(d => d.y)
@@ -192,7 +194,7 @@ export default function SynonymTree({
           default: return colors[0]
         }
       })
-      .attr('stroke', '#fff')
+      .attr('stroke', isDarkMode ? '#1e1e2e' : '#fff')
       .attr('stroke-width', 2)
 
     // Add labels
@@ -210,7 +212,7 @@ export default function SynonymTree({
         }
       })
       .attr('font-weight', d => d.data.type === 'word' || d.data.type === 'root' ? 'bold' : 'normal')
-      .attr('fill', '#333')
+      .attr('fill', isDarkMode ? '#e0e0e0' : '#333')
       .text(d => {
         if (d.data.type === 'word' && d.data.frequency) {
           return `${d.data.name} (${d.data.frequency})`
@@ -228,12 +230,13 @@ export default function SynonymTree({
         .attr('class', 'tree-tooltip')
         .style('position', 'absolute')
         .style('visibility', 'hidden')
-        .style('background', 'white')
-        .style('border', '1px solid #ddd')
+        .style('background', isDarkMode ? '#2a2a2a' : 'white')
+        .style('border', isDarkMode ? '1px solid #555' : '1px solid #ddd')
         .style('border-radius', '4px')
         .style('padding', '8px 12px')
         .style('font-size', '12px')
-        .style('box-shadow', '0 2px 8px rgba(0,0,0,0.15)')
+        .style('color', isDarkMode ? '#e0e0e0' : '#333')
+        .style('box-shadow', isDarkMode ? '0 2px 8px rgba(0,0,0,0.4)' : '0 2px 8px rgba(0,0,0,0.15)')
         .style('max-width', '250px')
         .style('z-index', '1000')
         .style('pointer-events', 'none')
@@ -257,7 +260,7 @@ export default function SynonymTree({
       }
     }
 
-  }, [data, maxNodes, colorScheme, showDefinitions, buildTreeData, countNodes, onWordClick, onSvgRef])
+  }, [data, maxNodes, colorScheme, showDefinitions, buildTreeData, countNodes, onWordClick, onSvgRef, isDarkMode])
 
   return (
     <div 

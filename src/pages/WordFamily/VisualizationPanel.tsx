@@ -20,7 +20,8 @@ import {
   IconButton,
   Tooltip,
   Paper,
-  Divider
+  Divider,
+  useTheme
 } from '@mui/material'
 import HubIcon from '@mui/icons-material/Hub'
 import AccountTreeIcon from '@mui/icons-material/AccountTree'
@@ -58,6 +59,8 @@ export default function VisualizationPanel({
   onWordClick
 }: VisualizationPanelProps) {
   const { t } = useTranslation()
+  const theme = useTheme()
+  const isDarkMode = theme.palette.mode === 'dark'
   const [activeTab, setActiveTab] = useState<ChartType>(config.type)
   const chartContainerRef = useRef<HTMLDivElement>(null)
   // Separate SVG refs for each chart type
@@ -312,6 +315,7 @@ export default function VisualizationPanel({
               showDefinitions={config.showDefinitions}
               onWordClick={onWordClick}
               onSvgRef={(ref) => { networkSvgRef.current = ref }}
+              isDarkMode={isDarkMode}
             />
           </Box>
         )
@@ -325,6 +329,7 @@ export default function VisualizationPanel({
               showDefinitions={config.showDefinitions}
               onWordClick={onWordClick}
               onSvgRef={(ref) => { treeSvgRef.current = ref }}
+              isDarkMode={isDarkMode}
             />
           </Box>
         )
@@ -335,6 +340,7 @@ export default function VisualizationPanel({
               data={data} 
               maxNodes={currentMaxNodes}
               onWordClick={onWordClick}
+              isDarkMode={isDarkMode}
             />
           </Box>
         )
@@ -482,17 +488,19 @@ export default function VisualizationPanel({
 function SynonymListView({ 
   data, 
   maxNodes,
-  onWordClick
+  onWordClick,
+  isDarkMode = false
 }: { 
   data: SynonymResult[]
   maxNodes: number
   onWordClick: (word: string) => void
+  isDarkMode?: boolean
 }) {
   const { t } = useTranslation()
   const limitedData = data.slice(0, maxNodes)
   
   return (
-    <Stack spacing={2} sx={{ p: 1, bgcolor: '#fff' }} id="synonym-list-content">
+    <Stack spacing={2} sx={{ p: 1, bgcolor: isDarkMode ? 'transparent' : '#fff' }} id="synonym-list-content">
       {limitedData.map(result => (
         <Paper 
           key={result.word} 

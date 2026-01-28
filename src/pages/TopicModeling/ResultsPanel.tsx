@@ -450,7 +450,7 @@ export default function ResultsPanel({
                           <span key={word.word}>
                             <span style={{ 
                               fontWeight: index < 3 ? 600 : 400,
-                              color: index < 3 ? '#333' : undefined
+                              color: index < 3 ? theme.palette.text.primary : undefined
                             }}>
                               {word.word}
                             </span>
@@ -839,7 +839,7 @@ export default function ResultsPanel({
             <Paper variant="outlined" sx={{ maxHeight: 300, overflow: 'auto' }}>
               <Table size="small">
                 <TableHead>
-                  <TableRow sx={{ '& th': { bgcolor: 'grey.50' } }}>
+                  <TableRow sx={{ '& th': { bgcolor: theme.palette.mode === 'dark' ? '#1e1e2e' : 'grey.50' } }}>
                     <TableCell padding="checkbox" />
                     <TableCell>ID</TableCell>
                     <TableCell>{t('topicModeling.results.topicName')}</TableCell>

@@ -62,8 +62,9 @@ export interface FrameworkListItem {
  * 标注类型
  * text: 文本标注(纯文本划词)
  * video: 视频标注(框选)
+ * audio: 音频标注(时间区域选择)
  */
-export type AnnotationType = 'text' | 'video'
+export type AnnotationType = 'text' | 'video' | 'audio'
 
 /**
  * 单条标注
@@ -114,6 +115,12 @@ export interface AnnotationArchive {
   // 多模态专用
   yoloAnnotations?: YoloTrack[]
   transcriptSegments?: TranscriptSegment[]
+  
+  // 音频专用
+  audioBoxes?: AudioBox[]            // 音频画框标注
+  waveformData?: WaveformData        // 波形数据（用于历史可视化）
+  pitchData?: PitchDataArchive       // 音高数据（用于历史可视化）
+  audioVisualizationSvg?: string     // 音频可视化 SVG（保存时生成）
   manualTracks?: VideoBox[]
   clipAnnotations?: ClipAnnotationData  // CLIP语义分类数据
 }
@@ -190,6 +197,43 @@ export interface VideoFrame {
   bbox: [number, number, number, number]
   time: number
   label: string
+}
+
+// ==================== Audio Box Types ====================
+
+/**
+ * 音频画框标注
+ * 在波形图上绘制的时间区域标注
+ */
+export interface AudioBox {
+  id: number
+  label: string
+  color: string
+  startTime: number      // 开始时间（秒）
+  endTime: number        // 结束时间（秒）
+  y: number              // 画框的 Y 坐标（0-1 归一化）
+  height: number         // 画框高度（0-1 归一化）
+  text?: string          // 可选的备注文本
+}
+
+/**
+ * 波形可视化数据（用于历史存档）
+ */
+export interface WaveformData {
+  peaks: number[]        // 波形采样点
+  duration: number       // 音频时长
+  sampleRate: number     // 采样率
+}
+
+/**
+ * 音高数据（用于历史存档）
+ */
+export interface PitchDataArchive {
+  enabled: boolean
+  f0: number[]           // 基频数组
+  times: number[]        // 时间点数组
+  fmin: number           // 最小频率
+  fmax: number           // 最大频率
 }
 
 // ==================== SpaCy Types ====================
@@ -333,6 +377,7 @@ export interface AnnotationArchiveListItem {
   framework: string
   textName?: string
   resourceName?: string
+  mediaType?: 'video' | 'audio'  // 媒体类型 (多模态标注)
   annotationCount: number
   timestamp: string
   coderName?: string  // 编码者名称
@@ -360,6 +405,11 @@ export interface SaveAnnotationRequest {
   spacyAnnotation?: SpacyAnnotationData  // SpaCy标注数据 (用于恢复)
   archiveId?: string        // 如果提供则覆盖保存
   coderName?: string        // 编码者名称
+  // 音频专用
+  audioBoxes?: AudioBox[]           // 音频画框标注
+  waveformData?: WaveformData       // 波形数据
+  pitchData?: PitchDataArchive      // 音高数据
+  audioVisualizationSvg?: string    // 音频可视化 SVG
 }
 
 // ==================== Utility Types ====================

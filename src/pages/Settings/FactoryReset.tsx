@@ -15,7 +15,8 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  Checkbox
+  Checkbox,
+  useTheme
 } from '@mui/material'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever'
@@ -29,6 +30,7 @@ import { frameworkApi } from '../../api/framework'
 
 export default function FactoryReset() {
   const { t } = useTranslation()
+  const theme = useTheme()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [confirmText, setConfirmText] = useState('')
   const [isResetting, setIsResetting] = useState(false)
@@ -231,11 +233,18 @@ export default function FactoryReset() {
               p: 1.5,
               fontSize: '1rem',
               border: '2px solid',
-              borderColor: confirmText === 'RESET' ? 'success.main' : 'grey.300',
+              borderColor: confirmText === 'RESET' 
+                ? 'success.main' 
+                : theme.palette.mode === 'dark' ? 'grey.700' : 'grey.300',
               borderRadius: 1,
               outline: 'none',
+              bgcolor: theme.palette.mode === 'dark' ? 'grey.900' : 'background.paper',
+              color: theme.palette.text.primary,
               '&:focus': {
                 borderColor: 'primary.main'
+              },
+              '&::placeholder': {
+                color: theme.palette.text.secondary
               }
             }}
             placeholder={t('settings.typeResetPlaceholder')}

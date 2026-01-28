@@ -89,7 +89,7 @@ export default function DataSourcePanel({
   const [validating, setValidating] = useState(false)
   const [validationPassed, setValidationPassed] = useState(false)
   
-  // 加载语料库存档列表
+  // 加载语料库存档列表（仅纯文本存档）
   const loadArchives = useCallback(async (corpusName: string) => {
     if (!corpusName) return
     
@@ -97,15 +97,19 @@ export default function DataSourcePanel({
     try {
       const response = await reliabilityApi.listCorpusArchives(corpusName)
       if (response.success && response.data) {
-        setArchives(response.data.archives)
+        // 过滤掉非纯文本存档（视频、音频等）
+        const textOnlyArchives = response.data.archives.filter(
+          archive => archive.type === 'text'
+        )
+        setArchives(textOnlyArchives)
       }
     } catch (error) {
       console.error('Failed to load archives:', error)
-      onError('加载存档列表失败')
+      onError(t('reliability.loadArchivesFailed', '加载存档列表失败'))
     } finally {
       setLoadingArchives(false)
     }
-  }, [onError])
+  }, [onError, t])
   
   // 处理语料库选择
   const handleCorpusChange = (corpusName: string) => {
@@ -148,11 +152,43 @@ export default function DataSourcePanel({
     setValidationPassed(false)
   }
   
-  // 处理文件上传
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // 处理文件上传（验证是否为纯文本存档）
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
-    if (files) {
-      setUploadedFiles(Array.from(files))
+    if (!files) return
+    
+    const validFiles: File[] = []
+    const invalidFiles: string[] = []
+    
+    for (const file of Array.from(files)) {
+      try {
+        const content = await file.text()
+        const data = JSON.parse(content)
+        
+        // 检查是否为有效的存档格式
+        if (!data.annotations || !Array.isArray(data.annotations)) {
+          invalidFiles.push(`${file.name}: ${t('reliability.invalidFormat', '无效的存档格式')}`)
+          continue
+        }
+        
+        // 检查是否为视频/音频存档（通过检查是否有 yoloAnnotations, videoBoxes, audioBoxes 等）
+        if (data.yoloAnnotations || data.videoBoxes || data.audioBoxes || data.mediaType === 'video' || data.mediaType === 'audio') {
+          invalidFiles.push(`${file.name}: ${t('reliability.videoAudioNotSupported', '不支持视频/音频存档，请上传纯文本标注存档')}`)
+          continue
+        }
+        
+        validFiles.push(file)
+      } catch (e) {
+        invalidFiles.push(`${file.name}: ${t('reliability.parseError', 'JSON解析失败')}`)
+      }
+    }
+    
+    if (invalidFiles.length > 0) {
+      onError(invalidFiles.join('\n'))
+    }
+    
+    if (validFiles.length > 0) {
+      setUploadedFiles(validFiles)
       setGoldStandardFileIndex(null)
       setValidationPassed(false)
     }

@@ -145,8 +145,17 @@ When uploading audio/video files, you can configure the following processing opt
 
 When enabled, the system will automatically transcribe audio using Whisper Large V3 Turbo model:
 - Word-level timestamps supported
-- Automatic SpaCy annotation
+- Automatic SpaCy, USAS, and MIPVU annotation
 - Transcription results saved sentence by sentence
+
+#### English Audio Forced Alignment (Wav2Vec2)
+
+For English audio, the system automatically performs after Whisper transcription:
+- **Wav2Vec2 Forced Alignment**: Generate word-level timestamps using `wav2vec2-base-960h` model
+- **TorchCrepe Pitch Extraction**: Extract fundamental frequency (F0) data using `full.pth` model
+- These data are used for waveform visualization in multimodal annotation
+
+> **Note**: Chinese audio does not support forced alignment and pitch extraction. Chinese audio can only be annotated in plain text annotation mode.
 
 #### YOLO Object Detection
 
@@ -5164,17 +5173,48 @@ If video has completed YOLO detection:
 
 ### Audio Annotation
 
-#### Audio Playback Control
+> **Important**: Audio waveform annotation is only available for English audio. Chinese audio can only be annotated in plain text annotation mode.
 
+#### English Audio Waveform Annotation
+
+For English audio with forced alignment data, the system displays an interactive waveform interface:
+
+**Waveform Visualization (Wavesurfer.js)**
+- **Waveform Display**: Display complete audio waveform with zoom and scroll support
+- **Word-level Alignment**: Labels showing each word's time position above the waveform
+- **Pitch Curve**: Optional F0 (fundamental frequency) curve overlay
+- **Zoom Controls**: Buttons or Ctrl+Scroll to zoom, centered on playhead
+
+**Playback Controls**
 - **Play/Pause**: Control audio playback
 - **Time Jump**: -5s/+5s buttons for quick jumping
-- **Waveform Display**: Display audio waveform, support range selection
+- **Click to Seek**: Click anywhere on waveform to jump to that time
+- **DAW Mode**: Playhead stays centered, waveform scrolls
+
+**Box Drawing Annotation**
+- **Draw Mode**: Click "Draw Box" button to enable drawing mode
+- **Draw Regions**: Drag on waveform to draw annotation boxes
+- **Label Display**: Boxes show current selected label name and color
+- **Time Recording**: Boxes automatically record start and end times
+- **Mode Toggle**: Disable draw mode to click waveform for seeking
+
+> **Tip**: Box drawing and transcript text selection are two independent annotation systems that do not affect each other.
 
 #### Transcript Annotation
 
 - **Transcript Display**: Display audio transcript text (if available)
 - **Text Selection Annotation**: Same as text annotation, supports text selection annotation
 - **Time Alignment**: Annotations aligned with audio time
+- **Current Sentence Highlighting**: Auto-highlight currently playing sentence
+- **Click to Seek**: Click transcript sentences to jump to corresponding time
+
+#### Chinese Audio Restrictions
+
+Since Wav2Vec2 forced alignment only supports English, Chinese audio:
+- Does not display waveform visualization interface
+- Does not support box drawing annotation
+- Can only be annotated via plain text annotation mode
+- Does not appear in multimodal annotation media selection
 
 ### Multi-Track Timeline
 
@@ -5241,6 +5281,8 @@ Framework Manager page is used to create and manage annotation frameworks:
 
 The Inter-Coder Reliability module is used to calculate annotation consistency between multiple coders, an essential tool for evaluating annotation quality in content analysis and qualitative research.
 
+> **Important Restriction**: Inter-coder reliability analysis only supports **plain text annotation archives**. Video and audio annotation archives are not supported.
+
 ### Interface Layout
 
 The Inter-Coder Reliability module uses a multi-panel layout:
@@ -5257,11 +5299,19 @@ The Inter-Coder Reliability module uses a multi-panel layout:
 2. Select annotation archives to analyze (multiple selection supported)
 3. System will automatically load archive contents
 
+> **Note**: The archive list is automatically filtered to show only plain text annotation archives. Video and audio annotation archives will not appear in the list.
+
 #### Upload Local Files
 
 1. Click upload area to select JSON format annotation files
 2. Drag and drop multiple files supported
 3. System will validate file format and content consistency
+
+**File Validation Rules**:
+- Must be valid JSON format
+- Must contain `annotations` array
+- Video/audio annotation archives are not supported (archives containing `yoloAnnotations`, `videoBoxes`, `audioBoxes`, or `mediaType` set to `video`/`audio` will be rejected)
+- Specific error messages will be displayed for non-compliant files
 
 ### Index-Label Matrix Calculation
 

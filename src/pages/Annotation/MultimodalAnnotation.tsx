@@ -63,7 +63,8 @@ import type {
   Corpus,
   CorpusText,
   YoloTrack,
-  TranscriptSegment
+  TranscriptSegment,
+  AudioBox
 } from '../../types'
 
 // SpaCy annotation types
@@ -136,11 +137,37 @@ export default function MultimodalAnnotation() {
   // CLIP annotation state
   const [clipAnnotation, setClipAnnotation] = useState<ClipAnnotationData | null>(null)
 
+  // Audio waveform state (for English audio with alignment)
+  const [alignmentData, setAlignmentData] = useState<{
+    enabled: boolean
+    word_alignments?: Array<{ word: string; start: number; end: number; score: number }>
+    char_alignments?: Array<{ char: string; start: number; end: number; score: number }>
+    error?: string
+    reason?: string
+  } | null>(null)
+  const [pitchData, setPitchData] = useState<{
+    enabled: boolean
+    hop_length_ms?: number
+    sample_rate?: number
+    fmin?: number
+    fmax?: number
+    f0?: number[]
+    periodicity?: number[]
+    times?: number[]
+    error?: string
+    reason?: string
+  } | null>(null)
+
   // Annotation state
   const [annotations, setAnnotations] = useState<Annotation[]>([])
+  const [savedAudioBoxes, setSavedAudioBoxes] = useState<AudioBox[]>([])  // 音频画框标注
+  const [waveformExportFn, setWaveformExportFn] = useState<(() => string | null) | null>(null)  // 波形导出函数
   const [currentArchiveId, setCurrentArchiveId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  
+  // Alignment processing state
+  const [alignmentProcessing, setAlignmentProcessing] = useState(false)
 
   // Archive state
   const [archives, setArchives] = useState<AnnotationArchiveListItem[]>([])
@@ -454,6 +481,8 @@ export default function MultimodalAnnotation() {
     setSpacyEntities([])
     setYoloTracks([])
     setClipAnnotation(null)
+    setAlignmentData(null)
+    setPitchData(null)
   }
 
   const handleMediaSelect = async (media: CorpusText) => {
@@ -474,6 +503,8 @@ export default function MultimodalAnnotation() {
     setSpacyEntities([])
     setYoloTracks([])
     setClipAnnotation(null)
+    setAlignmentData(null)
+    setPitchData(null)
     setMediaLoading(true)
     
     // Set media type
@@ -507,6 +538,28 @@ export default function MultimodalAnnotation() {
               text: seg.text || ''
             }))
             setTranscriptSegments(loadedSegments)
+          }
+          
+          // Load alignment data (for English audio with Wav2Vec2 forced alignment)
+          if (response.transcript?.alignment) {
+            setAlignmentData(response.transcript.alignment)
+            console.log('[MultimodalAnnotation] Alignment data loaded:', {
+              enabled: response.transcript.alignment.enabled,
+              wordCount: response.transcript.alignment.word_alignments?.length || 0
+            })
+          } else {
+            console.log('[MultimodalAnnotation] No alignment data in transcript')
+          }
+          
+          // Load pitch data (for English audio with TorchCrepe F0 extraction)
+          if (response.transcript?.pitch) {
+            setPitchData(response.transcript.pitch)
+            console.log('[MultimodalAnnotation] Pitch data loaded:', {
+              enabled: response.transcript.pitch.enabled,
+              f0Count: response.transcript.pitch.f0?.length || 0
+            })
+          } else {
+            console.log('[MultimodalAnnotation] No pitch data in transcript')
           }
           
           // Load SpaCy annotations (pass segments to avoid stale state)
@@ -576,6 +629,12 @@ export default function MultimodalAnnotation() {
         if (data.mediaType) {
           setMediaType(data.mediaType)
         }
+        // 恢复音频画框数据
+        if (data.audioBoxes && Array.isArray(data.audioBoxes)) {
+          setSavedAudioBoxes(data.audioBoxes)
+        } else {
+          setSavedAudioBoxes([])
+        }
         // Find the corresponding media by textId or resourceName and load SpaCy annotations
         if (targetCorpus) {
           let matchingMedia = null
@@ -598,6 +657,25 @@ export default function MultimodalAnnotation() {
             } else if (data.mediaType === 'video') {
               // Try to load from video directory if archive doesn't have CLIP data
               await loadClipAnnotations(targetCorpus.id, matchingMedia.id)
+            }
+            
+            // 重新加载对齐和音高数据（音频专用）
+            if (data.mediaType === 'audio') {
+              try {
+                const contentResponse = await corpusApi.getText(targetCorpus.id, matchingMedia.id)
+                if (contentResponse.success) {
+                  // 加载对齐数据 (transcript 直接在响应对象上)
+                  if (contentResponse.transcript?.alignment) {
+                    setAlignmentData(contentResponse.transcript.alignment)
+                  }
+                  // 加载音高数据
+                  if (contentResponse.transcript?.pitch) {
+                    setPitchData(contentResponse.transcript.pitch)
+                  }
+                }
+              } catch (err) {
+                console.warn('[handleLoadArchive] Failed to reload alignment/pitch data:', err)
+              }
             }
           } else {
             setSelectedMedia(null)
@@ -649,11 +727,94 @@ export default function MultimodalAnnotation() {
 
   const handleAnnotationRemove = useCallback((id: string) => {
     setAnnotations(prev => prev.filter(a => a.id !== id))
+    
+    // 如果是音频画框标注，同时删除 savedAudioBoxes 中的对应项
+    if (id.startsWith('audio-box-')) {
+      const audioBoxId = parseInt(id.replace('audio-box-', ''), 10)
+      setSavedAudioBoxes(prev => prev.filter(box => box.id !== audioBoxId))
+    }
   }, [])
 
   const handleAnnotationUpdate = useCallback((id: string, updates: Partial<Annotation>) => {
     setAnnotations(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a))
   }, [])
+
+  // 添加音频画框标注
+  const handleAudioBoxAdd = useCallback((box: Omit<AudioBox, 'id'>) => {
+    const audioBox: AudioBox = {
+      ...box,
+      id: Date.now()
+    }
+    setSavedAudioBoxes(prev => [...prev, audioBox])
+    
+    // 同时添加到标注列表（用于在标注界面显示和删除）
+    const annotation: Annotation = {
+      id: `audio-box-${audioBox.id}`,
+      text: `[${box.label}] ${box.startTime.toFixed(1)}s - ${box.endTime.toFixed(1)}s`,
+      startPosition: 0,
+      endPosition: 0,
+      label: box.label,
+      labelPath: box.label,
+      color: box.color,
+      type: 'audio',
+      timestamp: box.startTime,
+      frameNumber: Math.floor(box.startTime * 25)
+    }
+    setAnnotations(prev => [...prev, annotation])
+  }, [])
+
+  // 注册波形导出函数
+  const handleWaveformExportReady = useCallback((fn: () => string | null) => {
+    setWaveformExportFn(() => fn)
+  }, [])
+
+  // Reprocess alignment and pitch for English audio
+  const handleReprocessAlignment = async () => {
+    if (!currentCorpus || !selectedMedia) return
+    
+    setAlignmentProcessing(true)
+    setSaveMessage(null)
+    
+    try {
+      const response = await corpusApi.reAnnotateAlignment(currentCorpus.id, selectedMedia.id)
+      
+      if (response.success && response.task_id) {
+        // Poll for completion
+        const pollInterval = setInterval(async () => {
+          try {
+            const statusResponse = await corpusApi.getTaskStatus(response.task_id!)
+            if (statusResponse.data?.status === 'completed') {
+              clearInterval(pollInterval)
+              setAlignmentProcessing(false)
+              // Reload media data to get new alignment
+              handleMediaSelect(selectedMedia)
+              setSaveMessage({ type: 'success', text: t('annotation.alignmentComplete', 'Alignment processing complete') })
+              setTimeout(() => setSaveMessage(null), 3000)
+            } else if (statusResponse.data?.status === 'failed') {
+              clearInterval(pollInterval)
+              setAlignmentProcessing(false)
+              setSaveMessage({ type: 'error', text: statusResponse.data?.message || 'Alignment failed' })
+            }
+          } catch {
+            clearInterval(pollInterval)
+            setAlignmentProcessing(false)
+          }
+        }, 1000)
+        
+        // Timeout after 5 minutes
+        setTimeout(() => {
+          clearInterval(pollInterval)
+          setAlignmentProcessing(false)
+        }, 300000)
+      } else {
+        setAlignmentProcessing(false)
+        setSaveMessage({ type: 'error', text: response.message || 'Failed to start alignment' })
+      }
+    } catch (error) {
+      setAlignmentProcessing(false)
+      setSaveMessage({ type: 'error', text: String(error) })
+    }
+  }
 
   // 打开保存对话框
   const handleSaveClick = () => {
@@ -702,6 +863,25 @@ export default function MultimodalAnnotation() {
     }))
     
     try {
+      // 准备音高数据用于存档
+      const pitchDataArchive = pitchData?.enabled && pitchData.f0 && pitchData.times ? {
+        enabled: true,
+        f0: pitchData.f0,
+        times: pitchData.times,
+        fmin: pitchData.fmin || 50,
+        fmax: pitchData.fmax || 550
+      } : undefined
+      
+      // 导出音频波形 SVG（音频模式）
+      let audioVisualizationSvg: string | undefined
+      if (mediaType === 'audio' && waveformExportFn) {
+        const svg = waveformExportFn()
+        if (svg) {
+          audioVisualizationSvg = svg
+          console.log('[handleSave] Audio visualization SVG exported, size:', svg.length)
+        }
+      }
+      
       const request = createMultimodalAnnotationRequest(
         currentCorpus.name,
         selectedMedia.filename,
@@ -717,7 +897,11 @@ export default function MultimodalAnnotation() {
           clipAnnotations: clipAnnotation || undefined,
           archiveId: currentArchiveId || undefined,
           coderName: coderName || undefined,
-          textId: selectedMedia.id || undefined  // 传递 textId 用于精确关联
+          textId: selectedMedia.id || undefined,
+          // 音频专用数据
+          audioBoxes: savedAudioBoxes.length > 0 ? savedAudioBoxes : undefined,
+          pitchData: pitchDataArchive,
+          audioVisualizationSvg
         }
       )
 
@@ -786,8 +970,11 @@ export default function MultimodalAnnotation() {
   }, [selectedLabel, pendingMatches, handleAnnotationAdd, t])
 
   // Get video and audio texts
+  // Chinese audio is filtered out from multimodal annotation (should use plain text annotation instead)
   const videoTexts = currentCorpus?.texts.filter(t => t.mediaType === 'video') || []
-  const audioTexts = currentCorpus?.texts.filter(t => t.mediaType === 'audio') || []
+  const isChineseCorpus = currentCorpus?.language?.toLowerCase() === 'chinese'
+  const allAudioTexts = currentCorpus?.texts.filter(t => t.mediaType === 'audio') || []
+  const audioTexts = isChineseCorpus ? [] : allAudioTexts
 
   // Flatten frameworks for select
   const allFrameworks = frameworks.flatMap(cat => 
@@ -1019,9 +1206,17 @@ export default function MultimodalAnnotation() {
                 )}
 
                 {currentCorpus && videoTexts.length === 0 && audioTexts.length === 0 && (
-                  <Typography variant="body2" color="text.secondary" textAlign="center">
-                    {t('annotation.noMediaInCorpus')}
-                  </Typography>
+                  <Box>
+                    <Typography variant="body2" color="text.secondary" textAlign="center">
+                      {t('annotation.noMediaInCorpus')}
+                    </Typography>
+                    {/* Show hint for Chinese audio */}
+                    {isChineseCorpus && allAudioTexts.length > 0 && (
+                      <Typography variant="caption" color="info.main" textAlign="center" display="block" sx={{ mt: 1 }}>
+                        {t('annotation.chineseAudioHint', '中文音频请在纯文本标注模式下进行标注')}
+                      </Typography>
+                    )}
+                  </Box>
                 )}
               </Stack>
             </AccordionDetails>
@@ -1164,6 +1359,33 @@ export default function MultimodalAnnotation() {
               </Stack>
             </Box>
 
+            {/* Alignment reprocess prompt for English audio without alignment data */}
+            {mediaType === 'audio' && 
+             currentCorpus?.language?.toLowerCase() === 'english' && 
+             !alignmentData?.enabled && 
+             !mediaLoading && (
+              <Alert 
+                severity="info" 
+                sx={{ mx: 2, mt: 2 }}
+                action={
+                  <Button 
+                    color="inherit" 
+                    size="small"
+                    onClick={handleReprocessAlignment}
+                    disabled={alignmentProcessing}
+                    startIcon={alignmentProcessing ? <CircularProgress size={14} /> : null}
+                  >
+                    {alignmentProcessing 
+                      ? t('annotation.processing', 'Processing...')
+                      : t('annotation.reprocessAlignment', 'Process Alignment')
+                    }
+                  </Button>
+                }
+              >
+                {t('annotation.alignmentNotAvailable', 'Waveform alignment not available. Click to process forced alignment and pitch extraction for this audio.')}
+              </Alert>
+            )}
+
             {/* Multimodal Workspace */}
             <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
               <MultimodalWorkspace
@@ -1182,6 +1404,11 @@ export default function MultimodalAnnotation() {
                 spacyEntities={spacyEntities}
                 clipAnnotation={clipAnnotation}
                 searchHighlights={searchHighlights}
+                alignmentData={alignmentData}
+                pitchData={pitchData}
+                savedAudioBoxes={savedAudioBoxes}
+                onAudioBoxAdd={handleAudioBoxAdd}
+                onWaveformExportReady={handleWaveformExportReady}
               />
             </Box>
           </>

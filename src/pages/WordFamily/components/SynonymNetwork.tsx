@@ -14,6 +14,7 @@ interface SynonymNetworkProps {
   showDefinitions: boolean
   onWordClick: (word: string) => void
   onSvgRef: (ref: SVGSVGElement | null) => void
+  isDarkMode?: boolean
 }
 
 interface NetworkNode {
@@ -48,7 +49,8 @@ export default function SynonymNetwork({
   colorScheme,
   showDefinitions,
   onWordClick,
-  onSvgRef
+  onSvgRef,
+  isDarkMode = false
 }: SynonymNetworkProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
@@ -152,8 +154,8 @@ export default function SynonymNetwork({
       .data(links)
       .enter()
       .append('line')
-      .attr('stroke', '#999')
-      .attr('stroke-opacity', 0.4)
+      .attr('stroke', isDarkMode ? '#666' : '#999')
+      .attr('stroke-opacity', isDarkMode ? 0.6 : 0.4)
       .attr('stroke-width', 1)
 
     // Draw nodes
@@ -185,7 +187,7 @@ export default function SynonymNetwork({
     node.append('circle')
       .attr('r', (d: NetworkNode) => d.type === 'word' ? 12 : 8)
       .attr('fill', (d: NetworkNode) => d.type === 'word' ? colorScale('word') : colorScale('synonym'))
-      .attr('stroke', '#fff')
+      .attr('stroke', isDarkMode ? '#1e1e2e' : '#fff')
       .attr('stroke-width', 2)
 
     // Add labels to nodes
@@ -195,7 +197,7 @@ export default function SynonymNetwork({
       .attr('y', 4)
       .attr('font-size', (d: NetworkNode) => d.type === 'word' ? '12px' : '10px')
       .attr('font-weight', (d: NetworkNode) => d.type === 'word' ? 'bold' : 'normal')
-      .attr('fill', '#333')
+      .attr('fill', isDarkMode ? '#e0e0e0' : '#333')
 
     // Add tooltip
     const tooltip = d3.select(container)
@@ -203,12 +205,13 @@ export default function SynonymNetwork({
       .attr('class', 'synonym-tooltip')
       .style('position', 'absolute')
       .style('visibility', 'hidden')
-      .style('background', 'white')
-      .style('border', '1px solid #ddd')
+      .style('background', isDarkMode ? '#2a2a2a' : 'white')
+      .style('border', isDarkMode ? '1px solid #555' : '1px solid #ddd')
       .style('border-radius', '4px')
       .style('padding', '8px 12px')
       .style('font-size', '12px')
-      .style('box-shadow', '0 2px 8px rgba(0,0,0,0.15)')
+      .style('color', isDarkMode ? '#e0e0e0' : '#333')
+      .style('box-shadow', isDarkMode ? '0 2px 8px rgba(0,0,0,0.4)' : '0 2px 8px rgba(0,0,0,0.15)')
       .style('max-width', '250px')
       .style('z-index', '1000')
 
@@ -256,7 +259,7 @@ export default function SynonymNetwork({
       simulation.stop()
       tooltip.remove()
     }
-  }, [data, maxNodes, colorScheme, showDefinitions, buildGraphData, onWordClick, onSvgRef])
+  }, [data, maxNodes, colorScheme, showDefinitions, buildGraphData, onWordClick, onSvgRef, isDarkMode])
 
   return (
     <div 

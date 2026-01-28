@@ -8,7 +8,10 @@ import type {
   TranscriptSegment,
   VideoBox,
   ClipAnnotationData,
-  SpacyAnnotationData
+  SpacyAnnotationData,
+  AudioBox,
+  WaveformData,
+  PitchDataArchive
 } from '../types'
 
 // Annotation API response types
@@ -189,6 +192,11 @@ export function createMultimodalAnnotationRequest(
     archiveId?: string
     coderName?: string
     textId?: string  // 文本ID，用于精确关联
+    // 音频专用
+    audioBoxes?: AudioBox[]
+    waveformData?: WaveformData
+    pitchData?: PitchDataArchive
+    audioVisualizationSvg?: string
   }
 ): SaveAnnotationRequest {
   return {
@@ -207,6 +215,10 @@ export function createMultimodalAnnotationRequest(
     manualTracks: options?.manualTracks,
     clipAnnotations: options?.clipAnnotations,
     archiveId: options?.archiveId,
-    coderName: options?.coderName
+    coderName: options?.coderName,
+    audioBoxes: options?.audioBoxes,
+    waveformData: options?.waveformData,
+    pitchData: options?.pitchData,
+    audioVisualizationSvg: options?.audioVisualizationSvg
   }
 }

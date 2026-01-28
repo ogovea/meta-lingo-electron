@@ -12,6 +12,7 @@ interface NetworkGraphProps {
   data: NGramResult[]
   colorScheme: string
   onNodeClick?: (ngram: string) => void
+  isDarkMode?: boolean
 }
 
 interface Node {
@@ -40,7 +41,8 @@ const COLOR_PALETTES: Record<string, string[]> = {
 export default function NetworkGraph({
   data,
   colorScheme,
-  onNodeClick
+  onNodeClick,
+  isDarkMode = false
 }: NetworkGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
@@ -159,8 +161,8 @@ export default function NetworkGraph({
       .data(links)
       .enter()
       .append('line')
-      .attr('stroke', '#999')
-      .attr('stroke-opacity', 0.6)
+      .attr('stroke', isDarkMode ? '#666' : '#999')
+      .attr('stroke-opacity', isDarkMode ? 0.7 : 0.6)
       .attr('stroke-width', d => linkWidth(d.weight))
 
     // Add nodes
@@ -191,7 +193,7 @@ export default function NetworkGraph({
     node.append('circle')
       .attr('r', d => nodeSize(d.frequency))
       .attr('fill', d => colorScale(d.group))
-      .attr('stroke', '#fff')
+      .attr('stroke', isDarkMode ? '#1e1e2e' : '#fff')
       .attr('stroke-width', 2)
       .on('mouseover', function() {
         d3.select(this).attr('stroke-width', 3)
@@ -215,7 +217,7 @@ export default function NetworkGraph({
       .attr('text-anchor', 'middle')
       .attr('dy', '0.35em')
       .attr('font-size', d => Math.max(10, Math.min(14, nodeSize(d.frequency) * 0.8)))
-      .attr('fill', '#333')
+      .attr('fill', isDarkMode ? '#e0e0e0' : '#333')
       .attr('pointer-events', 'none')
 
     // Update positions on tick
@@ -234,7 +236,7 @@ export default function NetworkGraph({
       simulation.stop()
     }
 
-  }, [data, dimensions, colorScheme, onNodeClick])
+  }, [data, dimensions, colorScheme, onNodeClick, isDarkMode])
 
   return (
     <Box 

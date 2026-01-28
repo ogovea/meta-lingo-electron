@@ -6,7 +6,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import * as d3 from 'd3'
-import { Box, Typography, CircularProgress } from '@mui/material'
+import { Box, Typography, CircularProgress, useTheme } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 import type { NetworkVisualizationData, NetworkNode, NetworkEdge } from '../../../../types/biblio'
 
@@ -43,6 +43,8 @@ export default function NetworkGraph({
   height = 600 
 }: NetworkGraphProps) {
   const { t } = useTranslation()
+  const theme = useTheme()
+  const isDarkMode = theme.palette.mode === 'dark'
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width, height })
@@ -140,16 +142,16 @@ export default function NetworkGraph({
       .domain([1, d3.max(links, d => d.weight) || 1])
       .range([1, 5])
     
-    // Create simulation
+    // Create simulation with more spread out layout
     const simulation = d3.forceSimulation<SimulationNode>(nodes)
       .force('link', d3.forceLink<SimulationNode, SimulationLink>(links)
         .id(d => d.id)
-        .distance(80)
-        .strength(d => Math.min(1, d.weight / 10))
+        .distance(150)
+        .strength(d => Math.min(0.5, d.weight / 20))
       )
-      .force('charge', d3.forceManyBody().strength(-200))
+      .force('charge', d3.forceManyBody().strength(-400))
       .force('center', d3.forceCenter(w / 2, h / 2))
-      .force('collision', d3.forceCollide().radius(d => sizeScale(d.frequency) + 5))
+      .force('collision', d3.forceCollide().radius(d => sizeScale(d.frequency) + 15))
     
     // Draw edges - use darker colors with higher opacity
     const link = g.append('g')
@@ -188,7 +190,7 @@ export default function NetworkGraph({
     node.append('circle')
       .attr('r', d => sizeScale(d.frequency))
       .attr('fill', d => colorScale(d.cluster ?? 0))
-      .attr('stroke', d => d.centrality > 0.3 ? colors[5] || colors[4] : '#333')
+      .attr('stroke', d => d.centrality > 0.3 ? colors[5] || colors[4] : (isDarkMode ? '#666' : '#333'))
       .attr('stroke-width', d => d.centrality > 0.3 ? 3 : 2)
       .attr('opacity', 0.9)
       .on('mouseenter', (event, d) => {
@@ -201,13 +203,13 @@ export default function NetworkGraph({
       })
       .on('mouseleave', () => setTooltip(null))
     
-    // Node labels - use darker color for better readability
+    // Node labels - use theme-aware color for readability
     node.append('text')
       .text(d => d.label.length > 15 ? d.label.substring(0, 15) + '...' : d.label)
       .attr('font-size', 11)
       .attr('dx', d => sizeScale(d.frequency) + 3)
       .attr('dy', 3)
-      .attr('fill', '#1a1a1a')
+      .attr('fill', isDarkMode ? '#e0e0e0' : '#1a1a1a')
       .attr('font-weight', '500')
     
     // Update positions on tick
@@ -233,7 +235,7 @@ export default function NetworkGraph({
     return () => {
       simulation.stop()
     }
-  }, [data, dimensions, colorScheme, t, showTooltip])
+  }, [data, dimensions, colorScheme, t, showTooltip, isDarkMode])
   
   if (loading) {
     return (
