@@ -10,7 +10,7 @@ from typing import List, Dict, Any, Optional, Set, Tuple
 from pathlib import Path
 from functools import lru_cache
 
-from ..config import get_saves_dir
+from config import get_saves_dir
 
 logger = logging.getLogger(__name__)
 
