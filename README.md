@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v3.8.97-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-v3.8.98-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey.svg" alt="Platform">
   <img src="https://img.shields.io/badge/license-Non--Commercial-green.svg" alt="License">
 </p>
@@ -258,6 +258,13 @@ Meta-Lingo integrates several pre-trained models:
 This project is currently maintained for academic research purposes. For bug reports or feature requests, please open an issue.
 
 ## Changelog
+
+### v3.8.98 (2026-01-29)
+- **Fix**: Inter-coder reliability gold standard validation error
+  - Backend `/api/reliability/calculate` now returns `summary` field
+  - Fix `_annotation_to_key` field access logic for `None` values
+  - Fix `goldIndex` calculation based on actually loaded archives
+  - Add missing `reliability.archives` translation key
 
 ### v3.8.97 (2026-01-29)
 - **Dark Theme Enhancement**: Comprehensive dark theme support for all Topic Modeling visualizations
