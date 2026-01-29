@@ -47,6 +47,7 @@ models/**/*
 # ===================================
 # Development & Test Files
 # ===================================
+PROJECT.md
 pymusas_bem_analysis.md
 pymusas_bem_test_results.txt
 pymusas_output_example.md

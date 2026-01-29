@@ -221,7 +221,6 @@ Output will be in the `release/` directory.
 
 - **In-app Help**: Access via the Help module with bilingual documentation
 - **API Documentation**: http://localhost:8000/docs (when backend is running)
-- **Project Details**: See [PROJECT.md](PROJECT.md) for detailed technical documentation
 
 ## API Overview
 
@@ -338,7 +337,7 @@ This project is currently maintained for academic research purposes. For bug rep
 ### v3.8.72 (2026-01-10)
 - Fix large text upload progress and annotation issues
 
-For detailed changelog, see [PROJECT.md](PROJECT.md).
+For more details, please contact the author.
 
 ## License
 

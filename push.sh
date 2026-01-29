@@ -77,10 +77,13 @@ if [ -z "$(git status --porcelain)" ]; then
     echo ""
     echo -e "${YELLOW}[INFO] No changes to commit.${NC}"
 else
-    # Add all files
+    # Add all files (excluding confidential files)
     echo ""
     echo -e "${BLUE}[INFO] Adding files to staging...${NC}"
     git add .
+    
+    # Ensure confidential files are not staged
+    git reset HEAD PROJECT.md 2>/dev/null || true
     
     # Get commit message
     echo ""
