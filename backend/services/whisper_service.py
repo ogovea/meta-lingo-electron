@@ -21,14 +21,14 @@ from services.alignment_service import get_alignment_service
 from services.pitch_service import get_pitch_service
 
 
-def extract_waveform_peaks(audio_path: str, num_peaks: int = 1000) -> Dict[str, Any]:
+def extract_waveform_peaks(audio_path: str, peaks_per_second: int = 500) -> Dict[str, Any]:
     """
     Extract waveform peaks from audio file for visualization.
     This allows frontend to skip Web Audio API decodeAudioData which crashes on large files.
     
     Args:
         audio_path: Path to audio file
-        num_peaks: Number of peaks to extract (higher = more detail)
+        peaks_per_second: Number of peaks per second of audio (higher = more detail)
         
     Returns:
         Dictionary with peaks data and duration
@@ -50,6 +50,12 @@ def extract_waveform_peaks(audio_path: str, num_peaks: int = 1000) -> Dict[str, 
         
         # Calculate duration
         duration = len(audio_data) / sample_rate
+        
+        # Calculate number of peaks based on duration (more peaks for longer audio)
+        # 500 peaks/s ensures good resolution even at high zoom levels (up to 400%)
+        # Maximum 200000 peaks to support long audio files (up to ~7 minutes at max zoom)
+        num_peaks = int(duration * peaks_per_second)
+        num_peaks = max(5000, min(num_peaks, 200000))
         
         # Downsample to get peaks
         samples_per_peak = len(audio_data) // num_peaks
@@ -75,7 +81,7 @@ def extract_waveform_peaks(audio_path: str, num_peaks: int = 1000) -> Dict[str, 
         if max_peak > 0:
             peaks = [p / max_peak for p in peaks]
         
-        logger.info(f"Extracted {len(peaks)} waveform peaks from {audio_path}, duration: {duration:.2f}s")
+        logger.info(f"Extracted {len(peaks)} waveform peaks from {audio_path}, duration: {duration:.2f}s ({peaks_per_second} peaks/s)")
         
         return {
             "success": True,
@@ -562,7 +568,7 @@ class WhisperService:
                 progress_callback(95, 100, "Extracting waveform...")
             
             try:
-                waveform_result = extract_waveform_peaks(str(audio_path), num_peaks=2000)
+                waveform_result = extract_waveform_peaks(str(audio_path))
                 if waveform_result.get("success"):
                     transcript_data["waveform"] = {
                         "enabled": True,

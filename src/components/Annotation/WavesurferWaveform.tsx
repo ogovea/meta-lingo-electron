@@ -197,7 +197,7 @@ const WavesurferWaveform = forwardRef<WavesurferWaveformRef, WavesurferWaveformP
     return () => resizeObserver.disconnect()
   }, [])
 
-  // 导出为 SVG 的方法 - 创建完整波形 canvas，补充截断部分
+  // 导出为 SVG 的方法 - 使用预计算的 peaks 绘制完整波形
   const exportToSVG = useCallback((): string | null => {
     try {
       const ws = wavesurferRef.current
@@ -207,32 +207,12 @@ const WavesurferWaveform = forwardRef<WavesurferWaveformRef, WavesurferWaveformP
         return null
       }
       
-      // 获取 WaveSurfer 的 canvas
-      const renderer = (ws as any).renderer
-      let waveCanvas: HTMLCanvasElement | null = null
-      if (renderer?.wrapper) {
-        waveCanvas = renderer.wrapper.querySelector('canvas')
-      }
-      if (!waveCanvas) {
-        const container = (ws as any).options?.container
-        if (container) {
-          waveCanvas = container.querySelector('canvas')
-        }
-      }
-      
       const pitchCanvas = canvasRef.current
-      
-      if (!waveCanvas) {
-        console.warn('[exportToSVG] No waveform canvas found')
-        return null
-      }
-      
       const dpr = Math.min(window.devicePixelRatio || 1, 2)
       const svgWidth = containerWidth
       const svgHeight = height
-      const waveCanvasCssWidth = waveCanvas.width / dpr
       
-      // 创建完整尺寸的离屏 canvas 用于合成波形
+      // 创建完整尺寸的离屏 canvas 用于绘制波形
       const fullWaveCanvas = document.createElement('canvas')
       fullWaveCanvas.width = Math.ceil(svgWidth * dpr)
       fullWaveCanvas.height = Math.ceil(svgHeight * dpr)
@@ -243,60 +223,101 @@ const WavesurferWaveform = forwardRef<WavesurferWaveformRef, WavesurferWaveformP
         fullCtx.fillStyle = themeColors.background
         fullCtx.fillRect(0, 0, fullWaveCanvas.width, fullWaveCanvas.height)
         
-        // 复制 WaveSurfer 的 canvas 内容
-        fullCtx.drawImage(waveCanvas, 0, 0)
-        
-        // 如果 WaveSurfer canvas 不够宽，用 getDecodedData 补充剩余部分
-        if (waveCanvasCssWidth < svgWidth) {
-          try {
-            const decodedData = (ws as any).getDecodedData?.()
-            if (decodedData) {
-              const channelData = decodedData.getChannelData(0)
-              const totalSamples = channelData.length
-              
-              // 计算需要补充的起始位置
-              const startX = waveCanvasCssWidth
-              const endX = svgWidth
-              
-              // 计算对应的时间范围
-              const startTime = startX / zoom
-              const endTime = duration
-              
-              // 计算对应的采样点范围
-              const sampleRate = decodedData.sampleRate
-              const startSample = Math.floor(startTime * sampleRate)
-              const endSample = Math.min(Math.floor(endTime * sampleRate), totalSamples)
-              
-              // 计算每像素对应的采样点数
-              const pixelWidth = endX - startX
-              const samplesPerPixel = (endSample - startSample) / pixelWidth
-              
-              // 绘制补充部分的波形
-              fullCtx.fillStyle = '#4F4A85'
-              const waveformY = svgHeight / 2
-              const waveformHeight = svgHeight * 0.4
-              
-              for (let px = 0; px < pixelWidth; px++) {
-                const sampleStart = startSample + Math.floor(px * samplesPerPixel)
-                const sampleEnd = Math.min(sampleStart + Math.ceil(samplesPerPixel), totalSamples)
-                
-                let maxVal = 0
-                for (let s = sampleStart; s < sampleEnd; s++) {
-                  const absVal = Math.abs(channelData[s])
-                  if (absVal > maxVal) maxVal = absVal
-                }
-                
-                const barHeight = maxVal * waveformHeight * 2
-                const x = (startX + px) * dpr
-                const y = (waveformY - barHeight / 2) * dpr
-                const barW = Math.max(1, dpr)
-                const barH = barHeight * dpr
-                
-                fullCtx.fillRect(x, y, barW, barH)
+        // 优先使用预计算的 peaks 数据绘制完整波形（高分辨率）
+        if (precomputedPeaks && precomputedPeaks.length > 0) {
+          const peaksCount = precomputedPeaks.length
+          const waveformY = svgHeight / 2
+          const waveformHeight = svgHeight * 0.4
+          
+          fullCtx.fillStyle = themeColors.waveColor
+          
+          // 计算每个像素对应多少个 peaks
+          const actualWaveWidth = duration * zoom  // 实际波形宽度（不含额外空间）
+          const peaksPerPixel = peaksCount / actualWaveWidth
+          
+          for (let px = 0; px < actualWaveWidth; px++) {
+            // 找到对应的 peak 范围
+            const peakStart = Math.floor(px * peaksPerPixel)
+            const peakEnd = Math.min(Math.ceil((px + 1) * peaksPerPixel), peaksCount)
+            
+            // 获取这个范围内的最大值
+            let maxVal = 0
+            for (let p = peakStart; p < peakEnd; p++) {
+              if (precomputedPeaks[p] > maxVal) {
+                maxVal = precomputedPeaks[p]
               }
             }
-          } catch (e) {
-            console.warn('[exportToSVG] Failed to supplement waveform:', e)
+            
+            const barHeight = maxVal * waveformHeight * 2
+            const x = px * dpr
+            const y = (waveformY - barHeight / 2) * dpr
+            const barW = Math.max(1, dpr)
+            const barH = Math.max(1, barHeight * dpr)
+            
+            fullCtx.fillRect(x, y, barW, barH)
+          }
+        } else {
+          // 回退：从 WaveSurfer 的 canvas 复制（可能是部分波形）
+          const renderer = (ws as any).renderer
+          let waveCanvas: HTMLCanvasElement | null = null
+          if (renderer?.wrapper) {
+            waveCanvas = renderer.wrapper.querySelector('canvas')
+          }
+          if (!waveCanvas) {
+            const container = (ws as any).options?.container
+            if (container) {
+              waveCanvas = container.querySelector('canvas')
+            }
+          }
+          
+          if (waveCanvas) {
+            fullCtx.drawImage(waveCanvas, 0, 0)
+            
+            // 尝试用 getDecodedData 补充剩余部分
+            const waveCanvasCssWidth = waveCanvas.width / dpr
+            if (waveCanvasCssWidth < svgWidth) {
+              try {
+                const decodedData = (ws as any).getDecodedData?.()
+                if (decodedData) {
+                  const channelData = decodedData.getChannelData(0)
+                  const totalSamples = channelData.length
+                  const startX = waveCanvasCssWidth
+                  const endX = svgWidth
+                  const startTime = startX / zoom
+                  const endTime = duration
+                  const sampleRate = decodedData.sampleRate
+                  const startSample = Math.floor(startTime * sampleRate)
+                  const endSample = Math.min(Math.floor(endTime * sampleRate), totalSamples)
+                  const pixelWidth = endX - startX
+                  const samplesPerPixel = (endSample - startSample) / pixelWidth
+                  
+                  fullCtx.fillStyle = themeColors.waveColor
+                  const waveformY = svgHeight / 2
+                  const waveformHeight = svgHeight * 0.4
+                  
+                  for (let px = 0; px < pixelWidth; px++) {
+                    const sampleStart = startSample + Math.floor(px * samplesPerPixel)
+                    const sampleEnd = Math.min(sampleStart + Math.ceil(samplesPerPixel), totalSamples)
+                    
+                    let maxVal = 0
+                    for (let s = sampleStart; s < sampleEnd; s++) {
+                      const absVal = Math.abs(channelData[s])
+                      if (absVal > maxVal) maxVal = absVal
+                    }
+                    
+                    const barHeight = maxVal * waveformHeight * 2
+                    const x = (startX + px) * dpr
+                    const y = (waveformY - barHeight / 2) * dpr
+                    const barW = Math.max(1, dpr)
+                    const barH = barHeight * dpr
+                    
+                    fullCtx.fillRect(x, y, barW, barH)
+                  }
+                }
+              } catch (e) {
+                console.warn('[exportToSVG] Failed to supplement waveform:', e)
+              }
+            }
           }
         }
       }
@@ -311,8 +332,8 @@ const WavesurferWaveform = forwardRef<WavesurferWaveformRef, WavesurferWaveformP
       const tickInterval = 5
       for (let t = 0; t <= duration; t += tickInterval) {
         const x = t * zoom
-        svg += `  <line x1="${x}" y1="0" x2="${x}" y2="${svgHeight}" stroke="#e0e0e0" stroke-width="1"/>\n`
-        svg += `  <text x="${x + 2}" y="12" font-size="10" fill="#666">${t}s</text>\n`
+        svg += `  <line x1="${x}" y1="0" x2="${x}" y2="${svgHeight}" stroke="${isDarkMode ? '#444' : '#e0e0e0'}" stroke-width="1"/>\n`
+        svg += `  <text x="${x + 2}" y="12" font-size="10" fill="${isDarkMode ? '#aaa' : '#666'}">${t}s</text>\n`
       }
       
       // 嵌入完整波形 canvas
@@ -372,7 +393,7 @@ const WavesurferWaveform = forwardRef<WavesurferWaveformRef, WavesurferWaveformP
       console.error('[exportToSVG] Failed:', error)
       return null
     }
-  }, [containerWidth, height, duration, zoom, showPitch, savedAudioBoxes, wordAlignments])
+  }, [containerWidth, height, duration, zoom, showPitch, savedAudioBoxes, wordAlignments, precomputedPeaks, isDarkMode, themeColors.waveColor, themeColors.background])
 
   // Expose methods via ref
   useImperativeHandle(ref, () => ({
