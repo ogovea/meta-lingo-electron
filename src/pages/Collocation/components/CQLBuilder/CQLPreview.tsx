@@ -146,8 +146,10 @@ export default function CQLPreview({ cql, isValid, error, onCopy }: CQLPreviewPr
       {/* Show hint only when there's an actual validation issue (not just empty) */}
       {cql && !isValid && error && (
         <Typography variant="caption" color="warning.main" sx={{ mt: 1, display: 'block' }}>
-          💡 {error === 'Empty value in token' 
+          💡 {error === 'Empty value in token'
             ? (isZh ? '提示: 请填写 Token 的值' : 'Tip: Please fill in the token value')
+            : error === 'Unbalanced brackets'
+            ? (isZh ? '提示: 括号不匹配' : 'Tip: Unbalanced brackets')
             : (isZh ? '提示: ' + error : 'Tip: ' + error)
           }
         </Typography>

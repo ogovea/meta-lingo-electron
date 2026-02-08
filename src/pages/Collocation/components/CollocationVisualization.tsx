@@ -3,7 +3,7 @@
  * Container for KWIC result visualizations with chart type switching
  */
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import {
   Box,
   Tabs,
@@ -59,6 +59,21 @@ export default function CollocationVisualization({
   const [colorScheme, setColorScheme] = useState('blue')
   const [maxDocs, setMaxDocs] = useState(10)
   const chartContainerRef = useRef<HTMLDivElement>(null)
+  const [containerHeight, setContainerHeight] = useState(400)
+
+  // Measure chart container height for RidgePlot
+  useEffect(() => {
+    if (!chartContainerRef.current) return
+    const el = chartContainerRef.current
+    const ro = new ResizeObserver(entries => {
+      for (const e of entries) {
+        const h = Math.round(e.contentRect.height)
+        if (h > 0) setContainerHeight(h)
+      }
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   // Export SVG
   const handleExportSVG = useCallback(() => {
@@ -81,7 +96,7 @@ export default function CollocationVisualization({
     URL.revokeObjectURL(url)
   }, [activeViz])
 
-  // Export PNG
+  // Export PNG — renders the full SVG to canvas (captures entire chart even if scrolled)
   const handleExportPNG = useCallback(async () => {
     const container = chartContainerRef.current
     if (!container) return
@@ -90,29 +105,43 @@ export default function CollocationVisualization({
     if (!svg) return
 
     try {
-      // Import html2canvas dynamically
-      const html2canvas = (await import('html2canvas')).default
-      
-      // Get the chart container
-      const chartElement = container.querySelector('[class*="MuiPaper-root"], [class*="MuiBox-root"]') || container
-      
-      const canvas = await html2canvas(chartElement as HTMLElement, {
-        backgroundColor: '#fafafa',
-        scale: 3,
-        useCORS: true
-      })
-      
-      canvas.toBlob((blob) => {
-        if (!blob) return
-        
-        const url = URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = `collocation-${activeViz}-chart.png`
-        link.click()
-        
-        URL.revokeObjectURL(url)
-      }, 'image/png')
+      // Use SVG-to-canvas approach for full-fidelity export (no clipping by scroll)
+      const serializer = new XMLSerializer()
+      const svgString = serializer.serializeToString(svg)
+      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
+      const svgUrl = URL.createObjectURL(svgBlob)
+
+      const img = new Image()
+      const svgWidth = svg.getAttribute('width') ? parseInt(svg.getAttribute('width')!) : svg.clientWidth
+      const svgHeight = svg.getAttribute('height') ? parseInt(svg.getAttribute('height')!) : svg.clientHeight
+      const scale = 3
+
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        canvas.width = svgWidth * scale
+        canvas.height = svgHeight * scale
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return
+
+        // White background
+        ctx.fillStyle = '#fafafa'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+        ctx.scale(scale, scale)
+        ctx.drawImage(img, 0, 0, svgWidth, svgHeight)
+
+        canvas.toBlob((blob) => {
+          if (!blob) return
+          const url = URL.createObjectURL(blob)
+          const link = document.createElement('a')
+          link.href = url
+          link.download = `collocation-${activeViz}-chart.png`
+          link.click()
+          URL.revokeObjectURL(url)
+        }, 'image/png')
+
+        URL.revokeObjectURL(svgUrl)
+      }
+      img.src = svgUrl
     } catch (error) {
       console.error('Failed to export PNG:', error)
     }
@@ -171,13 +200,12 @@ export default function CollocationVisualization({
         )
       case 'ridgePlot':
         return (
-          <Box sx={{ height: '100%', display: 'flex' }}>
-            <RidgePlot
-              results={results}
-              colorScheme={colorScheme}
-              maxDocs={maxDocs}
-            />
-          </Box>
+          <RidgePlot
+            results={results}
+            colorScheme={colorScheme}
+            maxDocs={maxDocs}
+            containerHeight={containerHeight}
+          />
         )
       default:
         return null
@@ -256,7 +284,7 @@ export default function CollocationVisualization({
               size="small"
               value={maxDocs}
               onChange={setMaxDocs}
-              min={1}
+              min={5}
               max={50}
               step={1}
               integer
@@ -289,12 +317,19 @@ export default function CollocationVisualization({
         )}
       </Paper>
 
-      {/* Visualization Container */}
-      <Box 
+      {/* Visualization Container — scrollable for ridge plot when chart exceeds viewport */}
+      <Box
         ref={chartContainerRef}
-        sx={{ 
-          flex: 1, 
-          overflow: 'auto', 
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          // DensityPlot needs flex to fill container; RidgePlot uses explicit height
+          ...(activeViz === 'densityPlot' ? {
+            display: 'flex',
+            flexDirection: 'column'
+          } : {}),
           p: 1
         }}
       >

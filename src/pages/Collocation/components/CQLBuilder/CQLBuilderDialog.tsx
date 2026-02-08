@@ -29,6 +29,7 @@ import { useTranslation } from 'react-i18next'
 import type { CQLBuilderDialogProps, BuilderElement, CQLTemplate } from './types'
 import CQLBuilderContent from './CQLBuilderContent'
 import SavedTemplates, { saveTemplate } from './SavedTemplates'
+import { parseCQLToElements } from './cqlParser'
 
 export default function CQLBuilderDialog({
   open,
@@ -47,6 +48,8 @@ export default function CQLBuilderDialog({
   const [showHelp, setShowHelp] = useState(false)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [saveTemplateName, setSaveTemplateName] = useState('')
+  const [templateElements, setTemplateElements] = useState<BuilderElement[]>([])
+  const [templateVersion, setTemplateVersion] = useState(0)
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -80,15 +83,20 @@ export default function CQLBuilderDialog({
     }
   }
 
-  // Handle template selection
+  // Handle template selection - restore elements in builder
   const handleSelectTemplate = (template: CQLTemplate) => {
-    // If template has elements, we'd ideally restore them
-    // For now, we just set the CQL directly
     setCurrentCQL(template.cql)
     setShowTemplates(false)
-    
-    // Note: A full implementation would parse the CQL back to elements
-    // For now, users can copy the CQL or apply it directly
+
+    // Restore elements: use saved elements if available, otherwise parse from CQL
+    if (template.elements && template.elements.length > 0) {
+      setTemplateElements([...template.elements])
+    } else {
+      const parsed = parseCQLToElements(template.cql)
+      setTemplateElements(parsed)
+    }
+    setTemplateVersion(v => v + 1)
+
     setSnackbar({
       open: true,
       message: isZh ? `已加载模板: ${template.name}` : `Loaded template: ${template.name}`,
@@ -138,7 +146,7 @@ export default function CQLBuilderDialog({
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Typography variant="h6">
-            CQL Builder
+            {isZh ? 'CQL 构建器' : 'CQL Builder'}
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <Tooltip title={isZh ? '复制' : 'Copy'}>
@@ -203,6 +211,8 @@ export default function CQLBuilderDialog({
           {/* Builder content */}
           <CQLBuilderContent
             initialCQL={initialCQL}
+            externalElements={templateElements}
+            externalElementsVersion={templateVersion}
             onCQLChange={handleCQLChange}
             onCopy={handleCopy}
           />

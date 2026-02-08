@@ -30,6 +30,8 @@ import CQLPreview from './CQLPreview'
 
 interface CQLBuilderContentProps {
   initialCQL?: string
+  externalElements?: BuilderElement[]
+  externalElementsVersion?: number
   onCQLChange: (cql: string, elements: BuilderElement[], isValid: boolean) => void
   onCopy: () => void
 }
@@ -109,6 +111,8 @@ function validateCQL(cql: string): { valid: boolean; error?: string } {
 
 export default function CQLBuilderContent({
   initialCQL,
+  externalElements,
+  externalElementsVersion = 0,
   onCQLChange,
   onCopy
 }: CQLBuilderContentProps) {
@@ -121,6 +125,15 @@ export default function CQLBuilderContent({
   const [editingElementId, setEditingElementId] = useState<string | null>(null)
   const [addMenuAnchor, setAddMenuAnchor] = useState<null | HTMLElement>(null)
   const [insertIndex, setInsertIndex] = useState<number>(-1)
+
+  // Respond to external element updates (template loading)
+  useEffect(() => {
+    if (externalElementsVersion > 0 && externalElements && externalElements.length > 0) {
+      setElements(externalElements)
+      setSelectedElementId(null)
+      setEditingElementId(null)
+    }
+  }, [externalElementsVersion]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Generate CQL and validate
   const cql = generateCQL(elements)

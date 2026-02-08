@@ -2709,8 +2709,27 @@ Click the "Filter" button in the toolbar to open the filter dialog:
 
 #### Quick Filters
 
-- **Hide Sub-hits**: Hide results contained within other matches
-- **Only First Hit per Document**: Show only the first match in each document
+**Hide Sub-hits**
+
+Removes duplicate matches at the exact same position within a document. The system deduplicates by "document + position" key, keeping only the first match at each position.
+
+Use cases:
+- **CQL OR query deduplication**: When searching with `[word="make"] | [lemma="make"]`, the word "make" at a given position gets matched twice (once by word, once by lemma), producing duplicate results. Enabling this option keeps only one, preventing inflated frequency counts
+- **Overlapping conditions**: e.g., `[pos="NOUN"] | [pos="NN"]` where coarse and fine POS tags match the same word simultaneously
+- **Statistical accuracy**: Eliminates artificially high counts caused by overlapping search patterns in collocation frequency analysis
+
+Example: Searching `[word="run"] | [lemma="run"]` — "run" at position 15 in Document A matches both word and lemma (2 hits), while "running" at position 42 matches only lemma (1 hit). Without filter: 3 results. With filter: 2 results.
+
+**Only First Hit per Document**
+
+Keeps only the earliest match (lowest position) from each document, useful for seeing "which documents contain this word" rather than "how many times it appears."
+
+Use cases:
+- **Document coverage analysis**: Determine how many documents contain a given word or expression (document penetration rate) rather than total frequency. For example, analyzing how widely a technical term is used across a paper collection
+- **Cross-document distribution**: Each document shows only one hit point, making it easier to compare distribution across documents in the ridge plot
+- **High-frequency word refinement**: Common words like "the" or "however" may appear dozens of times in a single document. Enabling this keeps one result per document, highlighting inter-document differences rather than intra-document repetition
+
+Example: Searching "however" — Document A has 4 hits (positions 12, 45, 78, 120), Document B has 2 hits (positions 5, 33), Document C has 1 hit (position 67). Without filter: 7 results. With filter: 3 results (earliest from each: A→12, B→5, C→67)
 
 #### Query Filter
 

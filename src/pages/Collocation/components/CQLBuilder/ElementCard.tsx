@@ -107,14 +107,12 @@ export default function ElementCard({
   const handleDistanceChange = (field: 'min' | 'max', value: string) => {
     const numValue = parseInt(value) || 0
     if (field === 'min') {
-      setLocalMinCount(value)
       onUpdate({
         ...element,
         minCount: numValue,
         maxCount: Math.max(numValue, element.maxCount || numValue)
       })
     } else {
-      setLocalMaxCount(value)
       onUpdate({
         ...element,
         maxCount: numValue,
